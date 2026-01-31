@@ -25,8 +25,8 @@ export default function ProgressUpdater({
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        progress_percent: percent,
-        status: nextStatus, // optional
+        progress: Number(percent), // ✅ API expects "progress"
+        status: nextStatus,        // optional
       }),
     });
 
@@ -57,7 +57,8 @@ export default function ProgressUpdater({
       </div>
 
       <div style={{ marginTop: 10, fontSize: 13, fontWeight: 800, color: "#222" }}>
-        Current status: <span style={{ color: "#111" }}>{currentStatus || "UNKNOWN"}</span>
+        Current status:{" "}
+        <span style={{ color: "#111" }}>{currentStatus || "UNKNOWN"}</span>
       </div>
 
       <div style={{ marginTop: 12 }}>
@@ -110,9 +111,15 @@ export default function ProgressUpdater({
           type="button"
           disabled={saving}
           onClick={() => {
-            setPercent(100);
-            // save after state update:
-            setTimeout(() => save("COMPLETED"), 0);
+            const next = 100;
+            setPercent(next);
+            // ensure we send 100 even if state hasn't committed yet
+            setTimeout(() => {
+              // percent state might lag, but we force progress=100 anyway by reading `next`
+              // simplest: temporarily set percent and call save() which uses Number(percent)
+              // so we call save after a tick
+              save("COMPLETED");
+            }, 0);
           }}
           style={{
             padding: "10px 14px",

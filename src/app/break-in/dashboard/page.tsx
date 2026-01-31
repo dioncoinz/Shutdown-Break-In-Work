@@ -123,13 +123,13 @@ export default async function BreakInDashboardPage({
             style={{ height: 48, objectFit: "contain" }}
           />
 
-          <h1 style={{ fontSize: 26, fontWeight: 800, color: "#111", margin: 0 }}>
+          <h1 style={{ fontSize: 26, fontWeight: 600, color: "#111", margin: 0 }}>
             Shutdown Break-in Work Dashboard
           </h1>
         </div>
 
         <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
-          <Link href="/break-in/new" style={{ fontWeight: 800, color: "#111" }}>
+          <Link href="/break-in/new" style={{ fontWeight: 600, color: "#111" }}>
             + New Request
           </Link>
         </div>
@@ -274,9 +274,8 @@ export default async function BreakInDashboardPage({
       </div>
 
       <div style={{ marginTop: 10, fontSize: 12, color: "#444" }}>
-        Note: Done hrs is calculated from Planned × Progress%. If you want actual booked
-        hours, we can add an “Actual hours” field.
-      </div>
+        Built by Valeron
+              </div>
     </div>
   );
 }
