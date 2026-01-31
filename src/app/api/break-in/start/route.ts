@@ -2,11 +2,12 @@ import { NextResponse } from "next/server";
 import { createSupabaseDb } from "@/lib/supabase/db";
 
 
-export async function POST(
-  req: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const { id } = await params;
+export async function POST(req: Request) {
+  const { id } = (await req.json()) as { id?: string };
+
+  if (!id) {
+    return NextResponse.json({ error: "Missing id" }, { status: 400 });
+  }
   const supabase = createSupabaseDb();
 
   // set status IN_PROGRESS; keep existing progress if already set, else 0
