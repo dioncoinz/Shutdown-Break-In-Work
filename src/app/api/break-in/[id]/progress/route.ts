@@ -3,8 +3,9 @@ import { createSupabaseDb } from "@/lib/supabase/db";
 
 export async function POST(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   const { progress } = (await req.json()) as { progress?: number };
 
   if (typeof progress !== "number" || progress < 0 || progress > 100) {
@@ -22,7 +23,7 @@ export async function POST(
       progress_percent: progress,
       status: progress >= 100 ? "COMPLETED" : "IN_PROGRESS",
     })
-    .eq("id", params.id);
+    .eq("id", id);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });

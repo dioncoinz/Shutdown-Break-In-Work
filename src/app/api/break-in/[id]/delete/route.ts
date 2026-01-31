@@ -3,14 +3,16 @@ import { createSupabaseDb } from "@/lib/supabase/db";
 
 export async function DELETE(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
+
   const supabase = createSupabaseDb();
 
   const { error } = await supabase
     .from("break_in_requests")
     .delete()
-    .eq("id", params.id);
+    .eq("id", id);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
