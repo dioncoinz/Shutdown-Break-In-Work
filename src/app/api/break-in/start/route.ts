@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server";
 import { createSupabaseDb } from "@/lib/supabase/db";
 
-
 export async function POST(req: Request) {
-  const { id } = (await req.json()) as { id?: string };
+  const body = (await req.json()) as { id?: string };
 
-  if (!id) {
+  if (!body?.id) {
     return NextResponse.json({ error: "Missing id" }, { status: 400 });
   }
+
+  const id = body.id;
   const supabase = createSupabaseDb();
 
   // set status IN_PROGRESS; keep existing progress if already set, else 0
@@ -25,13 +26,12 @@ export async function POST(req: Request) {
 
   const { error } = await supabase
     .from("break_in_requests")
-    .update({
-      status: "IN_PROGRESS",
-      progress_percent: progress,
-    })
+    .update({ status: "IN_PROGRESS", progress_percent: progress })
     .eq("id", id);
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
 
   return NextResponse.json({ ok: true });
 }
