@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { createSupabaseDb } from "../../../lib/supabase/db";
+import { createSupabaseDb } from "@/lib/supabase/db";
 import DecisionForm from "../../../components/DecisionForm";
 import ProgressUpdater from "../../../components/ProgressUpdater";
 

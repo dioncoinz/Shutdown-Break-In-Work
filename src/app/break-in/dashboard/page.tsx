@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { createSupabaseDb } from "../../../lib/supabase/db";
+import { createSupabaseDb } from "@/lib/supabase/db";
 import DeleteButton from "../../../components/DeleteButton";
 
 type Row = {

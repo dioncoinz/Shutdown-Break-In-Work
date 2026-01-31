@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { createSupabaseDb } from "../../../../lib/supabase/db";
+import { createSupabaseDb } from "@/lib/supabase/db";
+
 
 type ResourceLine = { resource_type: string; hours: number };
 
