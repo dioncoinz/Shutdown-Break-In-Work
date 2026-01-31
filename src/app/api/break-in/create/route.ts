@@ -6,11 +6,11 @@ type ResourceLine = { resource_type: string; hours: number };
 
 export async function POST(req: Request) {
   const body = (await req.json()) as {
-    wo_number: string;
-    wo_title: woTitle,
-    reason: string;
-    consequence: string;
-    area?: string;
+  wo_number: string;
+  wo_title: string;
+  reason: string;
+  consequence: string;
+  area?: string;
     priority?: string;
     requestor_name?: string;
     requestor_email?: string;
