@@ -29,7 +29,6 @@ export default async function BreakInDashboardPage({
   const sp = await searchParams;
   const filter = (sp?.filter ?? "ALL").toUpperCase();
 
-
   const supabase = createSupabaseDb();
 
   const { data, error } = await supabase
@@ -219,7 +218,7 @@ export default async function BreakInDashboardPage({
               <Th>Progress</Th>
               <Th>Planned hrs</Th>
               <Th>Done hrs</Th>
-              <Th></Th>
+              <Th />
             </tr>
           </thead>
 
@@ -327,7 +326,7 @@ function KpiLink({
   );
 }
 
-function Th({ children }: { children: React.ReactNode }) {
+function Th({ children }: { children?: React.ReactNode }) {
   return (
     <th
       style={{
