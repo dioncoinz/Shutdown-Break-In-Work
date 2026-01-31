@@ -62,7 +62,7 @@ export default function ProgressUpdater({
       </div>
 
       <div style={{ marginTop: 12 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 800 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 800, color: "#000" }}>
           <span>Progress %</span>
           <span>{Math.round(percent)}%</span>
         </div>
@@ -87,6 +87,7 @@ export default function ProgressUpdater({
             borderRadius: 10,
             border: "1px solid #111",
             fontWeight: 900,
+            color: "#000",
             cursor: saving ? "not-allowed" : "pointer",
           }}
         >
@@ -102,6 +103,7 @@ export default function ProgressUpdater({
             borderRadius: 10,
             border: "1px solid #ccc",
             fontWeight: 900,
+            color: "#000",
           }}
         >
           Set In Progress
@@ -126,6 +128,7 @@ export default function ProgressUpdater({
             borderRadius: 10,
             border: "1px solid #16a34a",
             fontWeight: 900,
+            color: "#000",
           }}
         >
           Mark Completed
