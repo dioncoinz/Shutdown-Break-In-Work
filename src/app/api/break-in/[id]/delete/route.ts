@@ -9,6 +9,15 @@ export async function DELETE(
 
   const supabase = createSupabaseDb();
 
+  const { error: resourceError } = await supabase
+    .from("break_in_resources")
+    .delete()
+    .eq("request_id", id);
+
+  if (resourceError) {
+    return NextResponse.json({ error: resourceError.message }, { status: 500 });
+  }
+
   const { error } = await supabase
     .from("break_in_requests")
     .delete()
