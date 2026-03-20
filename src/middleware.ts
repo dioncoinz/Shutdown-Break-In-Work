@@ -53,6 +53,7 @@ async function isValidSession(token: string | undefined) {
 
 export async function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname;
+  const isApi = path.startsWith("/api/");
 
   // Allow public routes (no login needed)
   const isPublic =
@@ -68,6 +69,10 @@ export async function middleware(request: NextRequest) {
   const ok = await isValidSession(token);
 
   if (!ok) {
+    if (isApi) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     return NextResponse.redirect(url);

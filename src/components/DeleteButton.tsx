@@ -18,6 +18,7 @@ export default function DeleteButton({ id }: { id: string }) {
     try {
       const res = await fetch(`/api/break-in/${id}/delete`, {
         method: "DELETE",
+        credentials: "same-origin",
       });
 
       const raw = await res.text();
