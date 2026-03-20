@@ -1,10 +1,8 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 export default function DeleteButton({ id }: { id: string }) {
-  const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
@@ -41,7 +39,7 @@ export default function DeleteButton({ id }: { id: string }) {
 
       setMsg("Deleted");
       setBusy(false);
-      router.refresh();
+      window.location.href = "/break-in/dashboard";
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : "Delete failed";
       setBusy(false);
