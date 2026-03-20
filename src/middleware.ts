@@ -54,11 +54,13 @@ async function isValidSession(token: string | undefined) {
 export async function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname;
   const isApi = path.startsWith("/api/");
+  const isDeleteApi = /^\/api\/break-in\/[^/]+\/delete$/.test(path);
 
   // Allow public routes (no login needed)
   const isPublic =
     path === "/login" ||
     path === "/logout" ||
+    isDeleteApi ||
     path.startsWith("/_next") ||
     path === "/favicon.ico" ||
     path.startsWith("/api/login"); // allow login API
