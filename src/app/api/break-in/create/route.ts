@@ -6,14 +6,16 @@ type ResourceLine = { resource_type: string; hours: number };
 
 export async function POST(req: Request) {
   const body = (await req.json()) as {
-  wo_number: string;
-  wo_title: string;
-  reason: string;
-  consequence: string;
-  area?: string;
+    wo_number: string;
+    wo_title: string;
+    reason: string;
+    consequence: string;
+    area?: string;
     priority?: string;
     requestor_name?: string;
     requestor_email?: string;
+    photo_name?: string;
+    photo_data_url?: string;
     resources?: ResourceLine[];
   };
 
@@ -21,6 +23,20 @@ export async function POST(req: Request) {
   if (!body.wo_number || !body.reason || !body.consequence) {
     return NextResponse.json(
       { error: "Missing required fields (wo_number, reason, consequence)" },
+      { status: 400 }
+    );
+  }
+
+  const photoName = body.photo_name?.trim() || null;
+  const photoDataUrl = body.photo_data_url?.trim() || null;
+
+  if (photoDataUrl && !photoDataUrl.startsWith("data:image/")) {
+    return NextResponse.json({ error: "Photo must be an image" }, { status: 400 });
+  }
+
+  if (photoDataUrl && photoDataUrl.length > 5_000_000) {
+    return NextResponse.json(
+      { error: "Photo is too large. Please use a smaller image." },
       { status: 400 }
     );
   }
@@ -39,6 +55,8 @@ export async function POST(req: Request) {
       priority: body.priority ?? "P2",
       requestor_name: body.requestor_name ?? "Unknown",
       requestor_email: body.requestor_email ?? "unknown@unknown",
+      photo_name: photoName,
+      photo_data_url: photoDataUrl,
       status: "SUBMITTED",
     })
     .select("id")

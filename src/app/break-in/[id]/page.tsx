@@ -18,6 +18,8 @@ type ReqRow = {
 
   requestor_name: string | null;
   requestor_email: string | null;
+  photo_name: string | null;
+  photo_data_url: string | null;
 
   planner_comment: string | null;
   coordinator_comment: string | null;
@@ -126,10 +128,32 @@ export default async function BreakInDetailPage({
         </div>
 
         <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-          <Link href="/break-in/new" style={{ fontWeight: 800, color: "#111" }}>
+          <Link
+            href="/break-in/new"
+            style={{
+              fontWeight: 600,
+              color: "#fff",
+              textDecoration: "none",
+              padding: "10px 14px",
+              borderRadius: 10,
+              border: "1px solid #15803d",
+              background: "#16a34a",
+            }}
+          >
             + New request
           </Link>
-          <Link href="/break-in/dashboard" style={{ fontWeight: 800, color: "#111" }}>
+          <Link
+            href="/break-in/dashboard"
+            style={{
+              fontWeight: 600,
+              color: "#111",
+              textDecoration: "none",
+              padding: "10px 14px",
+              borderRadius: 10,
+              border: "1px solid rgba(0,0,0,0.12)",
+              background: "#fff",
+            }}
+          >
             Dashboard
           </Link>
         </div>
@@ -216,6 +240,7 @@ export default async function BreakInDetailPage({
         >
           <SectionTitle>Request details</SectionTitle>
 
+          <KeyVal label="Requested by" value={request.requestor_name || "-"} />
           <KeyVal label="WO Number" value={request.wo_number} />
           <KeyVal label="WO Title" value={request.wo_title || "-"} />
           <KeyVal label="Area" value={request.area || "-"} />
@@ -239,6 +264,7 @@ export default async function BreakInDetailPage({
               {request.consequence || "-"}
             </div>
           </div>
+
         </div>
 
         <div
@@ -281,6 +307,24 @@ export default async function BreakInDetailPage({
             Created:{" "}
             {request.created_at ? new Date(request.created_at).toLocaleString() : "-"}
           </div>
+
+          {request.photo_data_url && (
+            <div style={{ marginTop: 16 }}>
+              <div style={{ fontWeight: 800, color: "#111", marginBottom: 8 }}>
+                Photo
+              </div>
+              <img
+                src={request.photo_data_url}
+                alt={request.photo_name || "Break-in attachment"}
+                style={{
+                  width: "100%",
+                  borderRadius: 12,
+                  border: "1px solid #e5e7eb",
+                  display: "block",
+                }}
+              />
+            </div>
+          )}
         </div>
       </div>
 <ProgressUpdater
@@ -365,7 +409,7 @@ export default async function BreakInDetailPage({
 
         {/* Read-only summary once approved/in progress/completed */}
         {["APPROVED", "IN_PROGRESS", "COMPLETED", "REJECTED"].includes(st) && (
-          <div style={{ marginTop: 10, color: "#444", fontSize: 13 }}>
+          <div style={{ marginTop: 10, color: "#1f2937", fontSize: 13, fontWeight: 500 }}>
             This request is in <b style={{ color: "#111" }}>{st}</b>. Decisions above
             are no longer editable.
           </div>
@@ -438,16 +482,18 @@ function ApprovalBlock({
         marginTop: 14,
         paddingTop: 14,
         borderTop: "1px solid #f0f0f0",
-        opacity: visible ? 1 : 0.55,
+        opacity: visible ? 1 : 0.8,
       }}
     >
       <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
         <div>
           <div style={{ fontWeight: 900, color: "#111" }}>{title}</div>
-          <div style={{ fontSize: 12, color: "#444", marginTop: 4 }}>{hint}</div>
+          <div style={{ fontSize: 12, color: "#1f2937", marginTop: 4, fontWeight: 500 }}>
+            {hint}
+          </div>
         </div>
 
-        <div style={{ fontSize: 12, color: "#444", fontWeight: 800 }}>
+        <div style={{ fontSize: 12, color: "#111", fontWeight: 800 }}>
           {visible ? "Action required" : "Not active"}
         </div>
       </div>

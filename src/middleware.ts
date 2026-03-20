@@ -57,6 +57,7 @@ export async function middleware(request: NextRequest) {
   // Allow public routes (no login needed)
   const isPublic =
     path === "/login" ||
+    path === "/logout" ||
     path.startsWith("/_next") ||
     path === "/favicon.ico" ||
     path.startsWith("/api/login"); // allow login API

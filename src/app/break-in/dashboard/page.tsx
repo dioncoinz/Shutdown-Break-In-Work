@@ -7,11 +7,9 @@ type Row = {
   created_at: string;
   wo_number: string;
   wo_title: string | null;
-
   area: string | null;
   priority: string | null;
   workgroup: string | null;
-
   status: string | null;
   progress_percent: number | null;
 };
@@ -39,7 +37,16 @@ export default async function BreakInDashboardPage({
     .order("created_at", { ascending: false });
 
   if (error) {
-    return <div style={{ padding: 24 }}>Error loading dashboard</div>;
+    return (
+      <div style={{ padding: 24 }}>
+        <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700, color: "#111" }}>
+          Error loading dashboard
+        </h1>
+        <p style={{ marginTop: 10, color: "#4b5563" }}>
+          {error.message || "Unknown Supabase error"}
+        </p>
+      </div>
+    );
   }
 
   const { data: resData, error: resErr } = await supabase
@@ -47,14 +54,12 @@ export default async function BreakInDashboardPage({
     .select("request_id, hours");
 
   if (resErr) {
-    // Don't kill the page — table + KPIs can still load.
     console.error("Error loading resources:", resErr.message);
   }
 
   const rows = (data ?? []) as Row[];
   const resources = (resData ?? []) as ResourceRow[];
 
-  // Planned hours map: request_id -> total planned hours
   const plannedById = new Map<string, number>();
   for (const r of resources) {
     plannedById.set(
@@ -75,14 +80,12 @@ export default async function BreakInDashboardPage({
     return (planned * pct) / 100;
   }
 
-  // KPI calculations (based on all rows, not filtered)
   const total = rows.length;
   const completed = rows.filter((r) => r.status === "COMPLETED").length;
   const inProgress = rows.filter((r) => r.status === "IN_PROGRESS").length;
   const rejected = rows.filter((r) => r.status === "REJECTED").length;
   const outstanding = total - completed - rejected;
 
-  // Total hours across ALL jobs (meeting view)
   let totalPlannedHours = 0;
   let totalDoneHours = 0;
 
@@ -95,7 +98,17 @@ export default async function BreakInDashboardPage({
   totalPlannedHours = round1(totalPlannedHours);
   totalDoneHours = round1(totalDoneHours);
 
-  // Filter table rows
+  const workgroupHours = Array.from(
+    rows.reduce((acc, row) => {
+      const key = row.workgroup?.trim() || "Unallocated";
+      const planned = plannedById.get(row.id) ?? 0;
+      acc.set(key, (acc.get(key) ?? 0) + planned);
+      return acc;
+    }, new Map<string, number>())
+  )
+    .map(([name, hours]) => ({ name, hours: round1(hours) }))
+    .sort((a, b) => b.hours - a.hours);
+
   const filteredRows = rows.filter((r) => {
     if (filter === "ALL") return true;
     if (filter === "OUTSTANDING") {
@@ -106,7 +119,6 @@ export default async function BreakInDashboardPage({
 
   return (
     <div style={{ padding: 28, background: "#f4f6f8", minHeight: "100vh" }}>
-      {/* Header */}
       <div
         style={{
           display: "flex",
@@ -129,13 +141,37 @@ export default async function BreakInDashboardPage({
         </div>
 
         <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
-          <Link href="/break-in/new" style={{ fontWeight: 600, color: "#111" }}>
+          <Link
+            href="/break-in/new"
+            style={{
+              fontWeight: 600,
+              color: "#fff",
+              textDecoration: "none",
+              padding: "10px 14px",
+              borderRadius: 10,
+              border: "1px solid #15803d",
+              background: "#16a34a",
+            }}
+          >
             + New Request
+          </Link>
+          <Link
+            href="/logout"
+            style={{
+              fontWeight: 600,
+              color: "#111",
+              textDecoration: "none",
+              padding: "10px 14px",
+              borderRadius: 10,
+              border: "1px solid rgba(0,0,0,0.12)",
+              background: "#fff",
+            }}
+          >
+            Log out
           </Link>
         </div>
       </div>
 
-      {/* KPI cards (clickable filters) */}
       <div
         style={{
           marginTop: 20,
@@ -179,7 +215,6 @@ export default async function BreakInDashboardPage({
         />
       </div>
 
-      {/* Two top bars */}
       <div
         style={{
           marginTop: 16,
@@ -197,7 +232,10 @@ export default async function BreakInDashboardPage({
         />
       </div>
 
-      {/* Table */}
+      <div style={{ marginTop: 16 }}>
+        <WorkgroupHoursChart rows={workgroupHours} />
+      </div>
+
       <div
         style={{
           marginTop: 22,
@@ -256,7 +294,20 @@ export default async function BreakInDashboardPage({
                         gap: 10,
                       }}
                     >
-                      <Link href={`/break-in/${r.id}`}>Open</Link>
+                      <Link
+                        href={`/break-in/${r.id}`}
+                        style={{
+                          padding: "8px 12px",
+                          borderRadius: 10,
+                          border: "1px solid #cbd5e1",
+                          background: "#f8fafc",
+                          color: "#0f172a",
+                          fontWeight: 700,
+                          textDecoration: "none",
+                        }}
+                      >
+                        Open
+                      </Link>
                       <DeleteButton id={r.id} />
                     </div>
                   </Td>
@@ -273,14 +324,20 @@ export default async function BreakInDashboardPage({
         </table>
       </div>
 
-      <div style={{ marginTop: 10, fontSize: 12, color: "#444" }}>
+      <div
+        style={{
+          marginTop: 14,
+          fontSize: 14,
+          color: "#444",
+          textAlign: "center",
+          fontWeight: 600,
+        }}
+      >
         Built by Valeron
-              </div>
+      </div>
     </div>
   );
 }
-
-/* ---------- Components ---------- */
 
 function KpiLink({
   href,
@@ -426,7 +483,9 @@ function ProgressBar({ value, status }: { value: number; status: string }) {
 function HoursBar({ planned, done }: { planned: number; done: number }) {
   const safePlanned = Math.max(0, planned);
   const safeDone = Math.max(0, Math.min(safePlanned, done));
-  const pct = safePlanned === 0 ? 0 : Math.round((safeDone / safePlanned) * 100);
+  const remaining = Math.max(0, safePlanned - safeDone);
+  const donePct = safePlanned === 0 ? 0 : Math.round((safeDone / safePlanned) * 100);
+  const remainingPct = Math.max(0, 100 - donePct);
 
   return (
     <div
@@ -437,20 +496,62 @@ function HoursBar({ planned, done }: { planned: number; done: number }) {
         boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
       }}
     >
-      <div style={{ fontSize: 13, color: "#222", fontWeight: 800 }}>
-        Total Hours (Planned vs Completed)
-      </div>
+      <div style={{ fontSize: 13, color: "#222", fontWeight: 800 }}>Total Hours Split</div>
 
       <div
         style={{
           marginTop: 10,
-          height: 12,
-          background: "#e5e7eb",
-          borderRadius: 999,
+          height: 44,
+          borderRadius: 14,
           overflow: "hidden",
+          background: "#e5e7eb",
+          display: "flex",
         }}
       >
-        <div style={{ width: `${pct}%`, height: "100%", background: "#2563eb" }} />
+        <div
+          style={{
+            width: `${donePct}%`,
+            minWidth: donePct > 0 ? 90 : 0,
+            height: "100%",
+            background: "#2563eb",
+            color: "#fff",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: donePct > 0 ? "0 12px" : 0,
+            fontSize: 12,
+            fontWeight: 800,
+          }}
+        >
+          {donePct > 0 ? (
+            <>
+              <span>Completed</span>
+              <span>{safeDone.toFixed(1)} h</span>
+            </>
+          ) : null}
+        </div>
+        <div
+          style={{
+            width: `${remainingPct}%`,
+            minWidth: remainingPct > 0 ? 90 : 0,
+            height: "100%",
+            background: "#cbd5e1",
+            color: "#0f172a",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: remainingPct > 0 ? "0 12px" : 0,
+            fontSize: 12,
+            fontWeight: 800,
+          }}
+        >
+          {remainingPct > 0 ? (
+            <>
+              <span>Remaining</span>
+              <span>{remaining.toFixed(1)} h</span>
+            </>
+          ) : null}
+        </div>
       </div>
 
       <div
@@ -469,7 +570,10 @@ function HoursBar({ planned, done }: { planned: number; done: number }) {
         <span>
           <b>Done:</b> {safeDone.toFixed(1)} h
         </span>
-        <span style={{ color: "#2563eb", fontWeight: 900 }}>{pct}%</span>
+        <span>
+          <b>Remaining:</b> {remaining.toFixed(1)} h
+        </span>
+        <span style={{ color: "#2563eb", fontWeight: 900 }}>{donePct}% complete</span>
       </div>
     </div>
   );
@@ -490,6 +594,11 @@ function OverallStatusBar({
   const pctOutstanding = Math.round((outstanding / safeTotal) * 100);
   const pctCompleted = Math.round((completed / safeTotal) * 100);
   const pctRejected = Math.max(0, 100 - pctOutstanding - pctCompleted);
+  const radius = 42;
+  const circumference = 2 * Math.PI * radius;
+  const completedLen = (pctCompleted / 100) * circumference;
+  const rejectedLen = (pctRejected / 100) * circumference;
+  const outstandingLen = Math.max(0, circumference - completedLen - rejectedLen);
 
   return (
     <div
@@ -507,40 +616,192 @@ function OverallStatusBar({
       <div
         style={{
           marginTop: 10,
-          height: 12,
-          width: "100%",
-          borderRadius: 999,
-          overflow: "hidden",
-          background: "#e5e7eb",
           display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 18,
+          flexWrap: "wrap",
         }}
       >
-        <div style={{ width: `${pctOutstanding}%`, background: "#9ca3af" }} />
-        <div style={{ width: `${pctCompleted}%`, background: "#16a34a" }} />
-        <div style={{ width: `${pctRejected}%`, background: "#dc2626" }} />
+        <div
+          style={{
+            position: "relative",
+            width: 120,
+            height: 120,
+            display: "grid",
+            placeItems: "center",
+            flex: "0 0 auto",
+          }}
+        >
+          <svg width="120" height="120" viewBox="0 0 120 120" style={{ transform: "rotate(-90deg)" }}>
+            <circle cx="60" cy="60" r={radius} fill="none" stroke="#e5e7eb" strokeWidth="16" />
+            <circle
+              cx="60"
+              cy="60"
+              r={radius}
+              fill="none"
+              stroke="#16a34a"
+              strokeWidth="16"
+              strokeDasharray={`${completedLen} ${circumference}`}
+            />
+            <circle
+              cx="60"
+              cy="60"
+              r={radius}
+              fill="none"
+              stroke="#dc2626"
+              strokeWidth="16"
+              strokeDasharray={`${rejectedLen} ${circumference}`}
+              strokeDashoffset={-completedLen}
+            />
+            <circle
+              cx="60"
+              cy="60"
+              r={radius}
+              fill="none"
+              stroke="#9ca3af"
+              strokeWidth="16"
+              strokeDasharray={`${outstandingLen} ${circumference}`}
+              strokeDashoffset={-(completedLen + rejectedLen)}
+            />
+          </svg>
+
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
+              display: "grid",
+              placeItems: "center",
+              textAlign: "center",
+            }}
+          >
+            <div>
+              <div style={{ fontSize: 24, fontWeight: 900, color: "#111", lineHeight: 1 }}>
+                {total}
+              </div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "#4b5563", marginTop: 4 }}>
+                Total jobs
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style={{ display: "grid", gap: 10, flex: "1 1 220px" }}>
+          <LegendRow color="#6b7280" label="Outstanding" value={outstanding} percent={pctOutstanding} />
+          <LegendRow color="#16a34a" label="Completed" value={completed} percent={pctCompleted} />
+          <LegendRow color="#dc2626" label="Rejected" value={rejected} percent={pctRejected} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function LegendRow({
+  color,
+  label,
+  value,
+  percent,
+}: {
+  color: string;
+  label: string;
+  value: number;
+  percent: number;
+}) {
+  return (
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "14px 1fr auto auto",
+        alignItems: "center",
+        gap: 10,
+        fontSize: 13,
+        color: "#111",
+      }}
+    >
+      <span
+        style={{
+          width: 10,
+          height: 10,
+          borderRadius: 999,
+          background: color,
+          display: "inline-block",
+        }}
+      />
+      <span style={{ fontWeight: 700 }}>{label}</span>
+      <span style={{ color: "#4b5563", fontWeight: 700 }}>{value}</span>
+      <span style={{ color, fontWeight: 900 }}>{percent}%</span>
+    </div>
+  );
+}
+
+function WorkgroupHoursChart({
+  rows,
+}: {
+  rows: { name: string; hours: number }[];
+}) {
+  const maxHours = Math.max(...rows.map((r) => r.hours), 0);
+
+  return (
+    <div
+      style={{
+        background: "#fff",
+        padding: 18,
+        borderRadius: 14,
+        boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
+      }}
+    >
+      <div style={{ fontSize: 13, color: "#222", fontWeight: 800 }}>
+        Planned Hours by Workgroup
       </div>
 
-      <div
-        style={{
-          marginTop: 10,
-          display: "flex",
-          gap: 14,
-          flexWrap: "wrap",
-          fontSize: 12,
-          color: "#111",
-        }}
-      >
-        <span>
-          <b style={{ color: "#6b7280" }}>■</b> Outstanding: {outstanding}
-        </span>
-        <span>
-          <b style={{ color: "#16a34a" }}>■</b> Completed: {completed}
-        </span>
-        <span>
-          <b style={{ color: "#dc2626" }}>■</b> Rejected: {rejected}
-        </span>
-        <span style={{ opacity: 0.75 }}>Total: {total}</span>
-      </div>
+      {rows.length === 0 ? (
+        <div style={{ marginTop: 12, fontSize: 13, color: "#4b5563" }}>
+          No workgroup hours available yet.
+        </div>
+      ) : (
+        <div style={{ marginTop: 14, display: "grid", gap: 12 }}>
+          {rows.map((row) => {
+            const pct = maxHours === 0 ? 0 : Math.round((row.hours / maxHours) * 100);
+
+            return (
+              <div key={row.name}>
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 12,
+                    alignItems: "baseline",
+                    marginBottom: 6,
+                  }}
+                >
+                  <span style={{ fontSize: 13, fontWeight: 700, color: "#111" }}>
+                    {row.name}
+                  </span>
+                  <span style={{ fontSize: 12, fontWeight: 800, color: "#2563eb" }}>
+                    {row.hours.toFixed(1)} h
+                  </span>
+                </div>
+                <div
+                  style={{
+                    height: 12,
+                    background: "#e5e7eb",
+                    borderRadius: 999,
+                    overflow: "hidden",
+                  }}
+                >
+                  <div
+                    style={{
+                      width: `${pct}%`,
+                      height: "100%",
+                      background: "#0ea5e9",
+                    }}
+                  />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

@@ -75,6 +75,9 @@ export default function DecisionForm({
               padding: 10,
               border: "1px solid #ccc",
               borderRadius: 8,
+              color: "#111",
+              background: "#fff",
+              fontWeight: 500,
             }}
           />
         </div>
@@ -93,6 +96,9 @@ export default function DecisionForm({
             border: "1px solid #ccc",
             borderRadius: 8,
             minHeight: 90,
+            color: "#111",
+            background: "#fff",
+            fontWeight: 500,
           }}
         />
       </div>
@@ -105,8 +111,10 @@ export default function DecisionForm({
           style={{
             padding: "10px 14px",
             borderRadius: 10,
-            border: "1px solid #111",
+            border: "1px solid #15803d",
             fontWeight: 900,
+            color: "#fff",
+            background: "#16a34a",
             cursor: loading ? "not-allowed" : "pointer",
           }}
         >
@@ -120,8 +128,10 @@ export default function DecisionForm({
           style={{
             padding: "10px 14px",
             borderRadius: 10,
-            border: "1px solid #ccc",
+            border: "1px solid #b91c1c",
             fontWeight: 900,
+            color: "#fff",
+            background: "#dc2626",
             cursor: loading ? "not-allowed" : "pointer",
           }}
         >
