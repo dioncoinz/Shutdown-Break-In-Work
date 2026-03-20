@@ -20,20 +20,31 @@ export default function DeleteButton({ id }: { id: string }) {
         method: "DELETE",
       });
 
-      const data = await res.json().catch(() => ({}));
+      const raw = await res.text();
+      let data: { error?: string } = {};
+
+      try {
+        data = raw ? JSON.parse(raw) : {};
+      } catch {
+        data = {};
+      }
 
       if (!res.ok) {
-        setMsg(`❌ ${data?.error || "Delete failed"}`);
+        const fallback = raw?.trim()
+          ? raw.trim().slice(0, 160)
+          : `Delete failed (${res.status})`;
+        setMsg(`Error: ${data.error || fallback}`);
         setBusy(false);
         return;
       }
 
-      setMsg("✅ Deleted");
+      setMsg("Deleted");
       setBusy(false);
       router.refresh();
-    } catch (e: any) {
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : "Delete failed";
       setBusy(false);
-      setMsg(`❌ ${e?.message || "Delete failed"}`);
+      setMsg(`Error: ${message}`);
     }
   }
 
@@ -90,7 +101,9 @@ export default function DeleteButton({ id }: { id: string }) {
       </button>
 
       {msg && (
-        <div style={{ fontSize: 12, fontWeight: 900, color: "#111" }}>{msg}</div>
+        <div style={{ fontSize: 12, fontWeight: 900, color: "#111", maxWidth: 220 }}>
+          {msg}
+        </div>
       )}
     </div>
   );
