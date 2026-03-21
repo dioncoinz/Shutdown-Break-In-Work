@@ -28,6 +28,21 @@ alter table public.break_in_requests
 alter table public.break_in_requests
   add column if not exists photo_data_url text;
 
+alter table public.break_in_requests
+  alter column requestor_email drop not null;
+
+alter table public.break_in_requests
+  add column if not exists planner_comment text;
+
+alter table public.break_in_requests
+  add column if not exists coordinator_comment text;
+
+alter table public.break_in_requests
+  add column if not exists superintendent_comment text;
+
+alter table public.break_in_requests
+  add column if not exists manager_comment text;
+
 create table if not exists public.break_in_resources (
   id uuid primary key default gen_random_uuid(),
   request_id uuid not null references public.break_in_requests(id) on delete cascade,
