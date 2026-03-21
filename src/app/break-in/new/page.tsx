@@ -31,6 +31,7 @@ export default function NewBreakInRequestPage() {
   const [area, setArea] = useState("");
   const [priority, setPriority] = useState("P2");
   const [requestorName, setRequestorName] = useState("");
+  const [requestorEmail, setRequestorEmail] = useState("");
   const [photoName, setPhotoName] = useState("");
   const [photoDataUrl, setPhotoDataUrl] = useState("");
 
@@ -108,7 +109,7 @@ export default function NewBreakInRequestPage() {
       area: area.trim(),
       priority,
       requestor_name: requestorName.trim() || "Unknown",
-      requestor_email: "unknown@unknown",
+      requestor_email: requestorEmail.trim().toLowerCase() || null,
       photo_name: photoName || null,
       photo_data_url: photoDataUrl || null,
       resources: resources
@@ -134,7 +135,25 @@ export default function NewBreakInRequestPage() {
       return;
     }
 
-    window.location.href = "/break-in/dashboard";
+    if (data?.emailDebug) {
+      const detail = data.emailDebug.providerId
+        ? ` providerId=${data.emailDebug.providerId}`
+        : data.emailDebug.reason
+          ? ` ${data.emailDebug.reason}`
+          : "";
+
+      if (data.emailDebug.sent) {
+        setMsg(`Request created and email send was accepted by Resend.${detail}`);
+        return;
+      }
+    }
+
+    if (data?.emailWarning) {
+      setMsg(`Request created, but email was not sent: ${data.emailWarning}`);
+      return;
+    }
+
+    window.location.href = data?.id ? `/break-in/${data.id}` : "/break-in/dashboard";
   }
 
   return (
@@ -255,6 +274,16 @@ export default function NewBreakInRequestPage() {
                   value={requestorName}
                   onChange={(e) => setRequestorName(e.target.value)}
                   placeholder="Enter requestor name"
+                  style={inputStyle}
+                />
+              </Field>
+
+              <Field label="Requestor email">
+                <input
+                  type="email"
+                  value={requestorEmail}
+                  onChange={(e) => setRequestorEmail(e.target.value)}
+                  placeholder="Optional"
                   style={inputStyle}
                 />
               </Field>

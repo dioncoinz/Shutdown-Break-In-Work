@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
-import { createSupabaseDb } from "@/lib/supabase/db";
-
+import { cookies } from "next/headers";
+import { getSessionTokenParts, SESSION_COOKIE } from "@/lib/auth/session";
+import { applyBreakInDecision } from "@/lib/break-in/decision";
 
 export async function POST(
   req: Request,
@@ -8,25 +9,28 @@ export async function POST(
 ) {
   const { id } = await ctx.params;
 
-  const body = await req.json().catch(() => ({}));
-  const decision = body?.decision;
+  const body = (await req.json().catch(() => ({}))) as {
+    decision?: "APPROVE" | "REJECT";
+    comment?: string;
+  };
 
-  if (decision !== "APPROVE" && decision !== "REJECT") {
+  if (body.decision !== "APPROVE" && body.decision !== "REJECT") {
     return NextResponse.json({ error: "Bad decision" }, { status: 400 });
   }
 
-  const nextStatus = decision === "APPROVE" ? "COORD_REVIEW" : "REJECTED";
+  const cookieStore = await cookies();
+  const actor = getSessionTokenParts(cookieStore.get(SESSION_COOKIE)?.value)?.email || "A planner";
+  const result = await applyBreakInDecision({
+    requestId: id,
+    stage: "SUBMITTED",
+    decision: body.decision,
+    actor,
+    comment: body.comment,
+  });
 
-  const supabase = createSupabaseDb();
-
-  const { error } = await supabase
-    .from("break_in_requests")
-    .update({ status: nextStatus })
-    .eq("id", id);
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  if (!result.ok) {
+    return NextResponse.json({ error: result.error }, { status: 400 });
   }
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, emailWarning: result.emailWarning });
 }

@@ -19,6 +19,43 @@ type ResourceRow = {
   hours: number;
 };
 
+async function loadDashboardData() {
+  try {
+    const supabase = createSupabaseDb();
+
+    const { data, error } = await supabase
+      .from("break_in_requests")
+      .select(
+        "id, created_at, wo_number, wo_title, area, priority, workgroup, status, progress_percent"
+      )
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      return { ok: false as const, message: error.message || "Unknown Supabase error" };
+    }
+
+    const { data: resData, error: resErr } = await supabase
+      .from("break_in_resources")
+      .select("request_id, hours");
+
+    if (resErr) {
+      console.error("Error loading resources:", resErr.message);
+    }
+
+    return {
+      ok: true as const,
+      rows: (data ?? []) as Row[],
+      resources: (resData ?? []) as ResourceRow[],
+    };
+  } catch (error) {
+    console.error("Dashboard load failed:", error);
+    return {
+      ok: false as const,
+      message: error instanceof Error ? error.message : "Unknown network error",
+    };
+  }
+}
+
 export default async function BreakInDashboardPage({
   searchParams,
 }: {
@@ -26,39 +63,23 @@ export default async function BreakInDashboardPage({
 }) {
   const sp = await searchParams;
   const filter = (sp?.filter ?? "ALL").toUpperCase();
-
-  const supabase = createSupabaseDb();
-
-  const { data, error } = await supabase
-    .from("break_in_requests")
-    .select(
-      "id, created_at, wo_number, wo_title, area, priority, workgroup, status, progress_percent"
-    )
-    .order("created_at", { ascending: false });
-
-  if (error) {
+  const loaded = await loadDashboardData();
+  if (!loaded.ok) {
     return (
       <div style={{ padding: 24 }}>
         <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700, color: "#111" }}>
           Error loading dashboard
         </h1>
-        <p style={{ marginTop: 10, color: "#4b5563" }}>
-          {error.message || "Unknown Supabase error"}
+        <p style={{ marginTop: 10, color: "#4b5563" }}>{loaded.message}</p>
+        <p style={{ marginTop: 10, color: "#6b7280" }}>
+          This usually means the app could not reach Supabase from your current environment.
         </p>
       </div>
     );
   }
 
-  const { data: resData, error: resErr } = await supabase
-    .from("break_in_resources")
-    .select("request_id, hours");
-
-  if (resErr) {
-    console.error("Error loading resources:", resErr.message);
-  }
-
-  const rows = (data ?? []) as Row[];
-  const resources = (resData ?? []) as ResourceRow[];
+  const rows = loaded.rows;
+  const resources = loaded.resources;
 
   const plannedById = new Map<string, number>();
   for (const r of resources) {
@@ -154,20 +175,6 @@ export default async function BreakInDashboardPage({
             }}
           >
             + New Request
-          </Link>
-          <Link
-            href="/logout"
-            style={{
-              fontWeight: 600,
-              color: "#111",
-              textDecoration: "none",
-              padding: "10px 14px",
-              borderRadius: 10,
-              border: "1px solid rgba(0,0,0,0.12)",
-              background: "#fff",
-            }}
-          >
-            Log out
           </Link>
         </div>
       </div>

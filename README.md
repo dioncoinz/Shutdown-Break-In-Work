@@ -1,36 +1,61 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+## Break-in Workflow
+
+This app manages break-in work requests through Planner, Coordinator, Superintendent, and Manager approvals using Supabase as the system of record.
 
 ## Getting Started
 
-First, run the development server:
+Run the development server:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open `http://localhost:3000`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Required Env Vars
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Core app:
 
-## Learn More
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `AUTH_COOKIE_SECRET`
+- `ALLOWED_EMAIL_DOMAINS`
 
-To learn more about Next.js, take a look at the following resources:
+Email approval flow:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- `APP_BASE_URL`
+- `RESEND_API_KEY`
+- `EMAIL_FROM`
+- `PLANNER_APPROVER_EMAILS`
+- `COORDINATOR_APPROVER_EMAILS`
+- `SUPERINTENDENT_APPROVER_EMAILS`
+- `MANAGER_APPROVER_EMAILS`
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Example:
 
-## Deploy on Vercel
+```env
+APP_BASE_URL=https://your-app-url.example.com
+RESEND_API_KEY=re_xxxxx
+EMAIL_FROM=Break-in Workflow <workflow@yourdomain.com>
+PLANNER_APPROVER_EMAILS=planner1@greatland.com.au,planner2@greatland.com.au
+COORDINATOR_APPROVER_EMAILS=coordinator@greatland.com.au
+SUPERINTENDENT_APPROVER_EMAILS=superintendent@greatland.com.au
+MANAGER_APPROVER_EMAILS=manager@greatland.com.au
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Email Flow
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- New requests email the Planner group.
+- Planner approval emails the Coordinator group.
+- Coordinator approval emails the Superintendent group.
+- Superintendent approval emails the Manager group.
+- Manager approval or any rejection emails the requestor.
+
+Approval emails use signed links and do not require login.
+
+## Deliverability Notes
+
+- Verify the `EMAIL_FROM` domain in Resend.
+- If corporate mail filters delay or quarantine messages, ask IT to allowlist the sender domain and address.
+- The app sends both HTML and plain-text email content to improve compatibility with corporate mail systems.
