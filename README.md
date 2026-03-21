@@ -31,6 +31,7 @@ Email approval flow:
 - `COORDINATOR_APPROVER_EMAILS`
 - `SUPERINTENDENT_APPROVER_EMAILS`
 - `MANAGER_APPROVER_EMAILS`
+- `APPROVED_NOTIFICATION_EMAILS`
 
 Example:
 
@@ -42,6 +43,7 @@ PLANNER_APPROVER_EMAILS=planner1@greatland.com.au,planner2@greatland.com.au
 COORDINATOR_APPROVER_EMAILS=coordinator@greatland.com.au
 SUPERINTENDENT_APPROVER_EMAILS=superintendent@greatland.com.au
 MANAGER_APPROVER_EMAILS=manager@greatland.com.au
+APPROVED_NOTIFICATION_EMAILS=operations@greatland.com.au,supervisors@greatland.com.au
 ```
 
 ## Email Flow
@@ -51,6 +53,7 @@ MANAGER_APPROVER_EMAILS=manager@greatland.com.au
 - Coordinator approval emails the Superintendent group.
 - Superintendent approval emails the Manager group.
 - Manager approval or any rejection emails the requestor.
+- Manager approval also emails the approved-work notification group.
 
 Approval emails use signed links and do not require login.
 

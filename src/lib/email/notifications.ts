@@ -296,3 +296,44 @@ export async function notifyRequestorOutcome(
     ].join("\n"),
   });
 }
+
+export async function notifyApprovedDistribution(
+  request: BreakInRequestRecord,
+  approvedBy: string,
+  comment: string,
+) {
+  const recipients = parseEmailList(process.env.APPROVED_NOTIFICATION_EMAILS || "");
+  if (recipients.length === 0) {
+    return {
+      attempted: false,
+      sent: false,
+      reason: "No recipients configured for approved work notification.",
+    } satisfies NotificationResult;
+  }
+
+  const requestUrl = buildRequestUrl(request.id);
+
+  return sendEmail({
+    to: recipients,
+    subject: `Break-in approved for work: ${request.wo_number}`,
+    html: `
+      <div style="font-family: Arial, Helvetica, sans-serif; color: #111; line-height: 1.5;">
+        <p><strong>Break-in work approved</strong></p>
+        <p>${escapeHtml(approvedBy)} approved this break-in request for work.</p>
+        ${comment ? `<p><strong>Manager comment:</strong><br/>${escapeHtml(comment)}</p>` : ""}
+        ${formatRequestSummary(request)}
+        <p style="margin-top: 14px;">Open request: <a href="${requestUrl}">${requestUrl}</a></p>
+      </div>
+    `,
+    text: [
+      "Break-in work approved",
+      "",
+      `${approvedBy} approved this break-in request for work.`,
+      ...(comment ? ["", `Manager comment: ${comment}`] : []),
+      "",
+      formatRequestSummaryText(request),
+      "",
+      `Open request: ${requestUrl}`,
+    ].join("\n"),
+  });
+}

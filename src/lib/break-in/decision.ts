@@ -1,6 +1,10 @@
 import { createSupabaseDb } from "@/lib/supabase/db";
 import { getBreakInRequestById } from "@/lib/break-in/server";
-import { notifyRequestorOutcome, notifyStageApprovers } from "@/lib/email/notifications";
+import {
+  notifyApprovedDistribution,
+  notifyRequestorOutcome,
+  notifyStageApprovers,
+} from "@/lib/email/notifications";
 import type { BreakInRequestRecord } from "@/lib/break-in/workflow";
 
 export type Decision = "APPROVE" | "REJECT";
@@ -132,16 +136,31 @@ export async function applyBreakInDecision(input: ApplyDecisionInput): Promise<A
     }
   } else {
     const outcome = input.decision === "APPROVE" ? "APPROVED" : "REJECTED";
-    const emailResult = await notifyRequestorOutcome(updated, outcome, comment || "", input.actor).catch(
-      (emailError) => ({
+    const emailResults = [
+      await notifyRequestorOutcome(updated, outcome, comment || "", input.actor).catch((emailError) => ({
         attempted: true,
         sent: false,
         reason: emailError instanceof Error ? emailError.message : "Unknown email failure",
-      })
-    );
+      })),
+    ];
 
-    if (!emailResult.sent) {
-      emailWarning = emailResult.reason;
+    if (outcome === "APPROVED") {
+      emailResults.push(
+        await notifyApprovedDistribution(updated, input.actor, comment || "").catch((emailError) => ({
+          attempted: true,
+          sent: false,
+          reason: emailError instanceof Error ? emailError.message : "Unknown email failure",
+        }))
+      );
+    }
+
+    const failures = emailResults
+      .filter((result) => !result.sent)
+      .map((result) => result.reason)
+      .filter(Boolean);
+
+    if (failures.length > 0) {
+      emailWarning = failures.join(" | ");
     }
   }
 
