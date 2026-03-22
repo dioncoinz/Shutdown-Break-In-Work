@@ -43,6 +43,30 @@ alter table public.break_in_requests
 alter table public.break_in_requests
   add column if not exists manager_comment text;
 
+alter table public.break_in_requests
+  add column if not exists planner_decided_by text;
+
+alter table public.break_in_requests
+  add column if not exists planner_decided_at timestamptz;
+
+alter table public.break_in_requests
+  add column if not exists coordinator_decided_by text;
+
+alter table public.break_in_requests
+  add column if not exists coordinator_decided_at timestamptz;
+
+alter table public.break_in_requests
+  add column if not exists superintendent_decided_by text;
+
+alter table public.break_in_requests
+  add column if not exists superintendent_decided_at timestamptz;
+
+alter table public.break_in_requests
+  add column if not exists manager_decided_by text;
+
+alter table public.break_in_requests
+  add column if not exists manager_decided_at timestamptz;
+
 create table if not exists public.break_in_resources (
   id uuid primary key default gen_random_uuid(),
   request_id uuid not null references public.break_in_requests(id) on delete cascade,
@@ -78,6 +102,30 @@ create table if not exists public.work_removal_requests (
   superintendent_comment text,
   manager_comment text
 );
+
+alter table public.work_removal_requests
+  add column if not exists planner_decided_by text;
+
+alter table public.work_removal_requests
+  add column if not exists planner_decided_at timestamptz;
+
+alter table public.work_removal_requests
+  add column if not exists coordinator_decided_by text;
+
+alter table public.work_removal_requests
+  add column if not exists coordinator_decided_at timestamptz;
+
+alter table public.work_removal_requests
+  add column if not exists superintendent_decided_by text;
+
+alter table public.work_removal_requests
+  add column if not exists superintendent_decided_at timestamptz;
+
+alter table public.work_removal_requests
+  add column if not exists manager_decided_by text;
+
+alter table public.work_removal_requests
+  add column if not exists manager_decided_at timestamptz;
 
 create table if not exists public.work_removal_resources (
   id uuid primary key default gen_random_uuid(),

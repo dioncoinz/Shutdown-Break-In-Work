@@ -19,6 +19,14 @@ type ReqRow = {
   coordinator_comment: string | null;
   superintendent_comment: string | null;
   manager_comment: string | null;
+  planner_decided_by: string | null;
+  planner_decided_at: string | null;
+  coordinator_decided_by: string | null;
+  coordinator_decided_at: string | null;
+  superintendent_decided_by: string | null;
+  superintendent_decided_at: string | null;
+  manager_decided_by: string | null;
+  manager_decided_at: string | null;
 };
 
 type ResourceRow = {
@@ -76,10 +84,10 @@ export default async function WorkRemovalDetailPage({ params }: { params: Promis
   const st = request.status ?? "UNKNOWN";
   const stCol = statusColor(st);
   const approvalStages = [
-    { title: "Planner review", activeStatuses: ["SUBMITTED"], doneStatuses: ["COORD_REVIEW", "SUPER_REVIEW", "MANAGER_REVIEW", "APPROVED", "REJECTED"], comment: request.planner_comment },
-    { title: "Shutdown Coordinator review", activeStatuses: ["COORD_REVIEW"], doneStatuses: ["SUPER_REVIEW", "MANAGER_REVIEW", "APPROVED", "REJECTED"], comment: request.coordinator_comment },
-    { title: "Superintendent review", activeStatuses: ["SUPER_REVIEW"], doneStatuses: ["MANAGER_REVIEW", "APPROVED", "REJECTED"], comment: request.superintendent_comment },
-    { title: "Manager review", activeStatuses: ["MANAGER_REVIEW"], doneStatuses: ["APPROVED", "REJECTED"], comment: request.manager_comment },
+    { title: "Planner review", activeStatuses: ["SUBMITTED"], doneStatuses: ["COORD_REVIEW", "SUPER_REVIEW", "MANAGER_REVIEW", "APPROVED", "REJECTED"], comment: request.planner_comment, completedBy: request.planner_decided_by, completedAt: request.planner_decided_at },
+    { title: "Shutdown Coordinator review", activeStatuses: ["COORD_REVIEW"], doneStatuses: ["SUPER_REVIEW", "MANAGER_REVIEW", "APPROVED", "REJECTED"], comment: request.coordinator_comment, completedBy: request.coordinator_decided_by, completedAt: request.coordinator_decided_at },
+    { title: "Superintendent review", activeStatuses: ["SUPER_REVIEW"], doneStatuses: ["MANAGER_REVIEW", "APPROVED", "REJECTED"], comment: request.superintendent_comment, completedBy: request.superintendent_decided_by, completedAt: request.superintendent_decided_at },
+    { title: "Manager review", activeStatuses: ["MANAGER_REVIEW"], doneStatuses: ["APPROVED", "REJECTED"], comment: request.manager_comment, completedBy: request.manager_decided_by, completedAt: request.manager_decided_at },
   ] as const;
 
   return (
@@ -172,7 +180,7 @@ export default async function WorkRemovalDetailPage({ params }: { params: Promis
         </div>
         <div style={{ display: "grid", gap: 12 }}>
           {approvalStages.map((stage) => (
-            <ReadOnlyApprovalBlock key={stage.title} title={stage.title} currentStatus={st} activeStatuses={stage.activeStatuses} doneStatuses={stage.doneStatuses} comment={stage.comment} />
+            <ReadOnlyApprovalBlock key={stage.title} title={stage.title} currentStatus={st} activeStatuses={stage.activeStatuses} doneStatuses={stage.doneStatuses} comment={stage.comment} completedBy={stage.completedBy} completedAt={stage.completedAt} />
           ))}
         </div>
       </div>
@@ -203,12 +211,16 @@ function ReadOnlyApprovalBlock({
   activeStatuses,
   doneStatuses,
   comment,
+  completedBy,
+  completedAt,
 }: {
   title: string;
   currentStatus: string;
   activeStatuses: readonly string[];
   doneStatuses: readonly string[];
   comment: string | null;
+  completedBy: string | null;
+  completedAt: string | null;
 }) {
   const isActive = activeStatuses.includes(currentStatus);
   const isDone = doneStatuses.includes(currentStatus);
@@ -225,6 +237,12 @@ function ReadOnlyApprovalBlock({
             <div style={{ marginTop: 8, fontSize: 13, color: "#1f2937", fontWeight: 500, lineHeight: 1.45 }}>{comment}</div>
           ) : (
             <div style={{ fontSize: 12, color: "#64748b", marginTop: 6, fontWeight: 500 }}>No comment recorded.</div>
+          )}
+          {isDone && (completedBy || completedAt) && (
+            <div style={{ fontSize: 12, color: "#475569", marginTop: 8, fontWeight: 600 }}>
+              {completedBy ? `By ${completedBy}` : "Completed"}
+              {completedAt ? ` on ${new Date(completedAt).toLocaleString()}` : ""}
+            </div>
           )}
         </div>
         <div style={{ fontSize: 12, color: labelColor, background: labelBg, fontWeight: 800, padding: "6px 10px", borderRadius: 999, height: "fit-content", whiteSpace: "nowrap" }}>

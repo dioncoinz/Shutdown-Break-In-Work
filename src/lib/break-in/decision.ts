@@ -36,6 +36,16 @@ type StageConfig = {
     | "coordinator_comment"
     | "superintendent_comment"
     | "manager_comment";
+  decidedByColumn:
+    | "planner_decided_by"
+    | "coordinator_decided_by"
+    | "superintendent_decided_by"
+    | "manager_decided_by";
+  decidedAtColumn:
+    | "planner_decided_at"
+    | "coordinator_decided_at"
+    | "superintendent_decided_at"
+    | "manager_decided_at";
   requireWorkgroupOnApprove: boolean;
   nextReviewStatus?: ReviewStage;
 };
@@ -46,6 +56,8 @@ const STAGE_CONFIG: Record<ReviewStage, StageConfig> = {
     approveStatus: "COORD_REVIEW",
     rejectStatus: "REJECTED",
     commentColumn: "planner_comment",
+    decidedByColumn: "planner_decided_by",
+    decidedAtColumn: "planner_decided_at",
     requireWorkgroupOnApprove: false,
     nextReviewStatus: "COORD_REVIEW",
   },
@@ -54,6 +66,8 @@ const STAGE_CONFIG: Record<ReviewStage, StageConfig> = {
     approveStatus: "SUPER_REVIEW",
     rejectStatus: "REJECTED",
     commentColumn: "coordinator_comment",
+    decidedByColumn: "coordinator_decided_by",
+    decidedAtColumn: "coordinator_decided_at",
     requireWorkgroupOnApprove: true,
     nextReviewStatus: "SUPER_REVIEW",
   },
@@ -62,6 +76,8 @@ const STAGE_CONFIG: Record<ReviewStage, StageConfig> = {
     approveStatus: "MANAGER_REVIEW",
     rejectStatus: "REJECTED",
     commentColumn: "superintendent_comment",
+    decidedByColumn: "superintendent_decided_by",
+    decidedAtColumn: "superintendent_decided_at",
     requireWorkgroupOnApprove: false,
     nextReviewStatus: "MANAGER_REVIEW",
   },
@@ -70,6 +86,8 @@ const STAGE_CONFIG: Record<ReviewStage, StageConfig> = {
     approveStatus: "APPROVED",
     rejectStatus: "REJECTED",
     commentColumn: "manager_comment",
+    decidedByColumn: "manager_decided_by",
+    decidedAtColumn: "manager_decided_at",
     requireWorkgroupOnApprove: false,
   },
 };
@@ -100,6 +118,8 @@ export async function applyBreakInDecision(input: ApplyDecisionInput): Promise<A
   const update: Record<string, string | null> = {
     status: nextStatus,
     [config.commentColumn]: comment,
+    [config.decidedByColumn]: input.actor,
+    [config.decidedAtColumn]: new Date().toISOString(),
   };
 
   if (workgroup) {

@@ -24,6 +24,14 @@ export type BreakInRequestRecord = {
   coordinator_comment: string | null;
   superintendent_comment: string | null;
   manager_comment: string | null;
+  planner_decided_by: string | null;
+  planner_decided_at: string | null;
+  coordinator_decided_by: string | null;
+  coordinator_decided_at: string | null;
+  superintendent_decided_by: string | null;
+  superintendent_decided_at: string | null;
+  manager_decided_by: string | null;
+  manager_decided_at: string | null;
 };
 
 type StageConfig = {

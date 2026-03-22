@@ -23,6 +23,14 @@ type ReqRow = {
   coordinator_comment: string | null;
   superintendent_comment: string | null;
   manager_comment: string | null;
+  planner_decided_by: string | null;
+  planner_decided_at: string | null;
+  coordinator_decided_by: string | null;
+  coordinator_decided_at: string | null;
+  superintendent_decided_by: string | null;
+  superintendent_decided_at: string | null;
+  manager_decided_by: string | null;
+  manager_decided_at: string | null;
 };
 
 type ResourceRow = {
@@ -135,24 +143,32 @@ export default async function BreakInDetailPage({
       activeStatuses: ["SUBMITTED"],
       doneStatuses: ["COORD_REVIEW", "SUPER_REVIEW", "MANAGER_REVIEW", "APPROVED", "IN_PROGRESS", "COMPLETED", "REJECTED"],
       comment: request.planner_comment,
+      completedBy: request.planner_decided_by,
+      completedAt: request.planner_decided_at,
     },
     {
       title: "Shutdown Coordinator review",
       activeStatuses: ["COORD_REVIEW"],
       doneStatuses: ["SUPER_REVIEW", "MANAGER_REVIEW", "APPROVED", "IN_PROGRESS", "COMPLETED", "REJECTED"],
       comment: request.coordinator_comment,
+      completedBy: request.coordinator_decided_by,
+      completedAt: request.coordinator_decided_at,
     },
     {
       title: "Superintendent review",
       activeStatuses: ["SUPER_REVIEW"],
       doneStatuses: ["MANAGER_REVIEW", "APPROVED", "IN_PROGRESS", "COMPLETED", "REJECTED"],
       comment: request.superintendent_comment,
+      completedBy: request.superintendent_decided_by,
+      completedAt: request.superintendent_decided_at,
     },
     {
       title: "Manager review",
       activeStatuses: ["MANAGER_REVIEW"],
       doneStatuses: ["APPROVED", "IN_PROGRESS", "COMPLETED", "REJECTED"],
       comment: request.manager_comment,
+      completedBy: request.manager_decided_by,
+      completedAt: request.manager_decided_at,
     },
   ] as const;
 
@@ -412,6 +428,8 @@ export default async function BreakInDetailPage({
               activeStatuses={stage.activeStatuses}
               doneStatuses={stage.doneStatuses}
               comment={stage.comment}
+              completedBy={stage.completedBy}
+              completedAt={stage.completedAt}
             />
           ))}
         </div>
@@ -473,12 +491,16 @@ function ReadOnlyApprovalBlock({
   activeStatuses,
   doneStatuses,
   comment,
+  completedBy,
+  completedAt,
 }: {
   title: string;
   currentStatus: string;
   activeStatuses: readonly string[];
   doneStatuses: readonly string[];
   comment: string | null;
+  completedBy: string | null;
+  completedAt: string | null;
 }) {
   const isActive = activeStatuses.includes(currentStatus);
   const isDone = doneStatuses.includes(currentStatus);
@@ -511,6 +533,12 @@ function ReadOnlyApprovalBlock({
           ) : (
             <div style={{ fontSize: 12, color: "#64748b", marginTop: 6, fontWeight: 500 }}>
               No comment recorded.
+            </div>
+          )}
+          {isDone && (completedBy || completedAt) && (
+            <div style={{ fontSize: 12, color: "#475569", marginTop: 8, fontWeight: 600 }}>
+              {completedBy ? `By ${completedBy}` : "Completed"}
+              {completedAt ? ` on ${new Date(completedAt).toLocaleString()}` : ""}
             </div>
           )}
         </div>

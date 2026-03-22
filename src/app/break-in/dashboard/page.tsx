@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { createSupabaseDb } from "@/lib/supabase/db";
-import DeleteButton from "../../../components/DeleteButton";
 
 type Row = {
   id: string;
@@ -360,7 +359,6 @@ export default async function BreakInDashboardPage({
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "flex-end",
-                        gap: 10,
                       }}
                     >
                       <Link
@@ -377,7 +375,6 @@ export default async function BreakInDashboardPage({
                       >
                         Open
                       </Link>
-                      <DeleteButton id={r.id} />
                     </div>
                   </Td>
                 </tr>
