@@ -1,6 +1,6 @@
 ## Break-in Workflow
 
-This app manages break-in work requests through Planner, Coordinator, Superintendent, and Manager approvals using Supabase as the system of record.
+This app manages break-in work requests and work removal requests through Planner, Coordinator, Superintendent, and Manager approvals using Supabase as the system of record.
 
 ## Getting Started
 
@@ -54,6 +54,7 @@ APPROVED_NOTIFICATION_EMAILS=operations@greatland.com.au,supervisors@greatland.c
 - Superintendent approval emails the Manager group.
 - Manager approval or any rejection emails the requestor.
 - Manager approval also emails the approved-work notification group.
+- Work removal requests follow the same approval chain and use their own request and dashboard pages.
 
 Approval emails use signed links and do not require login.
 

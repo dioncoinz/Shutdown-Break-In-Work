@@ -19,6 +19,16 @@ type ResourceRow = {
   hours: number;
 };
 
+type RemovalRow = {
+  id: string;
+  status: string | null;
+};
+
+type RemovalResourceRow = {
+  request_id: string;
+  hours: number;
+};
+
 async function loadDashboardData() {
   try {
     const supabase = createSupabaseDb();
@@ -42,10 +52,28 @@ async function loadDashboardData() {
       console.error("Error loading resources:", resErr.message);
     }
 
+    const { data: removalData, error: removalErr } = await supabase
+      .from("work_removal_requests")
+      .select("id, status");
+
+    if (removalErr) {
+      console.error("Error loading removal requests:", removalErr.message);
+    }
+
+    const { data: removalResData, error: removalResErr } = await supabase
+      .from("work_removal_resources")
+      .select("request_id, hours");
+
+    if (removalResErr) {
+      console.error("Error loading removal resources:", removalResErr.message);
+    }
+
     return {
       ok: true as const,
       rows: (data ?? []) as Row[],
       resources: (resData ?? []) as ResourceRow[],
+      removalRows: (removalData ?? []) as RemovalRow[],
+      removalResources: (removalResData ?? []) as RemovalResourceRow[],
     };
   } catch (error) {
     console.error("Dashboard load failed:", error);
@@ -80,12 +108,22 @@ export default async function BreakInDashboardPage({
 
   const rows = loaded.rows;
   const resources = loaded.resources;
+  const removalRows = loaded.removalRows;
+  const removalResources = loaded.removalResources;
 
   const plannedById = new Map<string, number>();
   for (const r of resources) {
     plannedById.set(
       r.request_id,
       (plannedById.get(r.request_id) ?? 0) + (Number(r.hours) || 0)
+    );
+  }
+
+  const removedById = new Map<string, number>();
+  for (const resource of removalResources) {
+    removedById.set(
+      resource.request_id,
+      (removedById.get(resource.request_id) ?? 0) + (Number(resource.hours) || 0)
     );
   }
 
@@ -118,6 +156,11 @@ export default async function BreakInDashboardPage({
 
   totalPlannedHours = round1(totalPlannedHours);
   totalDoneHours = round1(totalDoneHours);
+
+  const approvedRemovalRows = removalRows.filter((row) => row.status === "APPROVED");
+  const approvedRemovalHours = round1(
+    approvedRemovalRows.reduce((sum, row) => sum + (removedById.get(row.id) ?? 0), 0)
+  );
 
   const workgroupHours = Array.from(
     rows.reduce((acc, row) => {
@@ -162,6 +205,20 @@ export default async function BreakInDashboardPage({
         </div>
 
         <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
+          <Link
+            href="/work-removal/new"
+            style={{
+              fontWeight: 600,
+              color: "#fff",
+              textDecoration: "none",
+              padding: "10px 14px",
+              borderRadius: 10,
+              border: "1px solid #b45309",
+              background: "#d97706",
+            }}
+          >
+            + New Removal Request
+          </Link>
           <Link
             href="/break-in/new"
             style={{
@@ -219,6 +276,11 @@ export default async function BreakInDashboardPage({
           label="Rejected"
           value={rejected}
           color="#dc2626"
+        />
+        <RemovalSummaryLink
+          href="/work-removal/dashboard?filter=APPROVED"
+          jobs={approvedRemovalRows.length}
+          hours={approvedRemovalHours}
         />
       </div>
 
@@ -383,6 +445,45 @@ function KpiLink({
         </div>
         <div style={{ marginTop: 8, fontSize: 12, color: "#444", opacity: 0.85 }}>
           Click to filter
+        </div>
+      </div>
+    </Link>
+  );
+}
+
+function RemovalSummaryLink({
+  href,
+  jobs,
+  hours,
+}: {
+  href: string;
+  jobs: number;
+  hours: number;
+}) {
+  return (
+    <Link href={href} style={{ textDecoration: "none", color: "inherit" }}>
+      <div
+        style={{
+          background: "#fff7ed",
+          padding: 18,
+          borderRadius: 14,
+          boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
+          border: "1px solid #fdba74",
+        }}
+      >
+        <div style={{ fontSize: 13, color: "#9a3412", fontWeight: 800 }}>Approved Work Removal</div>
+        <div style={{ marginTop: 10, display: "flex", justifyContent: "space-between", gap: 14 }}>
+          <div>
+            <div style={{ fontSize: 24, fontWeight: 900, color: "#c2410c" }}>{jobs}</div>
+            <div style={{ fontSize: 12, color: "#7c2d12", fontWeight: 700 }}>WO removed</div>
+          </div>
+          <div style={{ textAlign: "right" }}>
+            <div style={{ fontSize: 24, fontWeight: 900, color: "#b45309" }}>{hours.toFixed(1)}</div>
+            <div style={{ fontSize: 12, color: "#7c2d12", fontWeight: 700 }}>hours removed</div>
+          </div>
+        </div>
+        <div style={{ marginTop: 8, fontSize: 12, color: "#7c2d12", opacity: 0.85 }}>
+          Click to open removal list
         </div>
       </div>
     </Link>

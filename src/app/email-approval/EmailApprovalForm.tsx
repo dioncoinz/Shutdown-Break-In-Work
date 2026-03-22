@@ -8,12 +8,16 @@ export default function EmailApprovalForm({
   currentStatus,
   decision,
   requireWorkgroup,
+  executePath = "/api/email-approval/execute",
+  entityLabel = "request",
 }: {
   token: string;
   requestId: string;
   currentStatus: string;
   decision: "APPROVE" | "REJECT";
   requireWorkgroup: boolean;
+  executePath?: string;
+  entityLabel?: string;
 }) {
   const [comment, setComment] = useState("");
   const [workgroup, setWorkgroup] = useState("");
@@ -29,7 +33,7 @@ export default function EmailApprovalForm({
     setSaving(true);
     setResult(null);
 
-    const res = await fetch("/api/email-approval/execute", {
+    const res = await fetch(executePath, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -50,7 +54,7 @@ export default function EmailApprovalForm({
     const suffix = data?.emailWarning ? ` Email warning: ${data.emailWarning}` : "";
     setResult({
       ok: true,
-      message: `${decision === "APPROVE" ? "Approval" : "Rejection"} saved for request ${requestId}. Current status: ${data?.nextStatus || currentStatus}.${suffix}`,
+      message: `${decision === "APPROVE" ? "Approval" : "Rejection"} saved for ${entityLabel} ${requestId}. Current status: ${data?.nextStatus || currentStatus}.${suffix}`,
     });
   }
 

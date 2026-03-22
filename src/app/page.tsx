@@ -62,6 +62,20 @@ export default function HomePage() {
             Create Request
           </Link>
           <Link
+            href="/work-removal/new"
+            style={{
+              fontWeight: 700,
+              color: "#fff",
+              textDecoration: "none",
+              padding: "12px 16px",
+              borderRadius: 10,
+              border: "1px solid #b45309",
+              background: "#d97706",
+            }}
+          >
+            Remove Work
+          </Link>
+          <Link
             href="/break-in/dashboard"
             style={{
               fontWeight: 700,

@@ -59,3 +59,39 @@ create index if not exists break_in_requests_status_idx
 
 create index if not exists break_in_resources_request_id_idx
   on public.break_in_resources (request_id);
+
+create table if not exists public.work_removal_requests (
+  id uuid primary key default gen_random_uuid(),
+  created_at timestamptz not null default now(),
+  wo_number text not null,
+  wo_title text,
+  reason text,
+  consequence text,
+  area text,
+  priority text default 'P2',
+  workgroup text,
+  status text not null default 'SUBMITTED',
+  requestor_name text,
+  requestor_email text,
+  planner_comment text,
+  coordinator_comment text,
+  superintendent_comment text,
+  manager_comment text
+);
+
+create table if not exists public.work_removal_resources (
+  id uuid primary key default gen_random_uuid(),
+  request_id uuid not null references public.work_removal_requests(id) on delete cascade,
+  resource_type text not null,
+  hours numeric(10,1) not null default 0,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists work_removal_requests_created_at_idx
+  on public.work_removal_requests (created_at desc);
+
+create index if not exists work_removal_requests_status_idx
+  on public.work_removal_requests (status);
+
+create index if not exists work_removal_resources_request_id_idx
+  on public.work_removal_resources (request_id);

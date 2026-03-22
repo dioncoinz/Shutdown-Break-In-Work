@@ -12,9 +12,21 @@ type ResourceLine = {
 export default function ResourcePlannerEditor({
   id,
   initialResources,
+  savePath,
+  title = "Planned hours",
+  description = "Update resource lines after submission if the plan changes.",
+  successMessage = "Planned hours updated.",
+  errorMessage = "Failed to update planned hours.",
+  buttonLabel = "Save planned hours",
 }: {
   id: string;
   initialResources: ResourceLine[];
+  savePath?: string;
+  title?: string;
+  description?: string;
+  successMessage?: string;
+  errorMessage?: string;
+  buttonLabel?: string;
 }) {
   const router = useRouter();
   const [resources, setResources] = useState<ResourceLine[]>(
@@ -75,7 +87,7 @@ export default function ResourcePlannerEditor({
     setSaving(true);
     setMsg(null);
 
-    const res = await fetch(`/api/break-in/${id}/resources`, {
+    const res = await fetch(savePath || `/api/break-in/${id}/resources`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -91,11 +103,11 @@ export default function ResourcePlannerEditor({
     setSaving(false);
 
     if (!res.ok) {
-      setMsg(data?.error || "Failed to update planned hours.");
+      setMsg(data?.error || errorMessage);
       return;
     }
 
-    setMsg("Planned hours updated.");
+    setMsg(successMessage);
     router.refresh();
   }
 
@@ -111,10 +123,8 @@ export default function ResourcePlannerEditor({
     >
       <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
         <div>
-          <div style={{ fontSize: 15, fontWeight: 900, color: "#111" }}>Planned hours</div>
-          <div style={{ marginTop: 6, fontSize: 13, color: "#4b5563" }}>
-            Update resource lines after submission if the plan changes.
-          </div>
+          <div style={{ fontSize: 15, fontWeight: 900, color: "#111" }}>{title}</div>
+          <div style={{ marginTop: 6, fontSize: 13, color: "#4b5563" }}>{description}</div>
         </div>
 
         <button
@@ -216,7 +226,7 @@ export default function ResourcePlannerEditor({
             cursor: saving ? "not-allowed" : "pointer",
           }}
         >
-          {saving ? "Saving..." : "Save planned hours"}
+          {saving ? "Saving..." : buttonLabel}
         </button>
 
         {msg && (
