@@ -161,6 +161,11 @@ export async function applyBreakInDecision(input: ApplyDecisionInput): Promise<A
 
     if (failures.length > 0) {
       emailWarning = failures.join(" | ");
+      console.warn("Break-in approval completed with email warnings", {
+        requestId: updated.id,
+        nextStatus,
+        emailWarning,
+      });
     }
   }
 

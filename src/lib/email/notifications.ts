@@ -303,7 +303,18 @@ export async function notifyApprovedDistribution(
   comment: string,
 ) {
   const recipients = parseEmailList(process.env.APPROVED_NOTIFICATION_EMAILS || "");
+  console.log("Approved distribution recipients resolved", {
+    requestId: request.id,
+    woNumber: request.wo_number,
+    recipientCount: recipients.length,
+  });
+
   if (recipients.length === 0) {
+    console.warn("Approved distribution skipped because no recipients are configured", {
+      requestId: request.id,
+      woNumber: request.wo_number,
+      envPresent: Boolean(process.env.APPROVED_NOTIFICATION_EMAILS),
+    });
     return {
       attempted: false,
       sent: false,
@@ -312,6 +323,12 @@ export async function notifyApprovedDistribution(
   }
 
   const requestUrl = buildRequestUrl(request.id);
+  console.log("Sending approved distribution email", {
+    requestId: request.id,
+    woNumber: request.wo_number,
+    recipients,
+    approvedBy,
+  });
 
   return sendEmail({
     to: recipients,

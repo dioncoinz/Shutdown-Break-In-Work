@@ -24,7 +24,24 @@ export async function POST(req: Request) {
   });
 
   if (!result.ok) {
+    if (result.emailWarning) {
+      console.warn("Work removal email approval failed with warning", {
+        requestId: parsed.data.requestId,
+        stage: parsed.data.stage,
+        decision: parsed.data.decision,
+        emailWarning: result.emailWarning,
+      });
+    }
     return NextResponse.json({ error: result.error, emailWarning: result.emailWarning }, { status: 400 });
+  }
+
+  if (result.emailWarning) {
+    console.warn("Work removal email approval completed with warning", {
+      requestId: parsed.data.requestId,
+      stage: parsed.data.stage,
+      decision: parsed.data.decision,
+      emailWarning: result.emailWarning,
+    });
   }
 
   return NextResponse.json({

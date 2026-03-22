@@ -165,6 +165,11 @@ export async function applyWorkRemovalDecision(input: ApplyDecisionInput): Promi
 
     if (failures.length > 0) {
       emailWarning = failures.join(" | ");
+      console.warn("Work removal approval completed with email warnings", {
+        requestId: updated.id,
+        nextStatus,
+        emailWarning,
+      });
     }
   }
 

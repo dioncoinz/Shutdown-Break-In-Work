@@ -70,6 +70,13 @@ async function sendEmail({
     };
   }
 
+  console.log("Attempting Resend email", {
+    from,
+    to,
+    subject,
+    apiKeyPrefix: apiKey.slice(0, 8),
+  });
+
   let response: Response;
   try {
     response = await fetch("https://api.resend.com/emails", {
@@ -82,6 +89,12 @@ async function sendEmail({
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown fetch error";
+    console.error("Resend fetch threw before response", {
+      from,
+      to,
+      subject,
+      message,
+    });
     return {
       attempted: true,
       sent: false,
@@ -91,6 +104,13 @@ async function sendEmail({
 
   if (!response.ok) {
     const body = await response.text().catch(() => "");
+    console.error("Resend responded with error", {
+      status: response.status,
+      body,
+      from,
+      to,
+      subject,
+    });
     return {
       attempted: true,
       sent: false,
@@ -106,6 +126,12 @@ async function sendEmail({
       reason: "Resend accepted the request but did not return an email id.",
     };
   }
+
+  console.log("Resend accepted email", {
+    id: body.id,
+    to,
+    subject,
+  });
 
   return { attempted: true, sent: true, providerId: body.id };
 }
@@ -274,7 +300,18 @@ export async function notifyRemovalApprovedDistribution(
   comment: string,
 ) {
   const recipients = parseBreakInEmailList(process.env.APPROVED_NOTIFICATION_EMAILS || "");
+  console.log("Removal approved distribution recipients resolved", {
+    requestId: request.id,
+    woNumber: request.wo_number,
+    recipientCount: recipients.length,
+  });
+
   if (recipients.length === 0) {
+    console.warn("Removal approved distribution skipped because no recipients are configured", {
+      requestId: request.id,
+      woNumber: request.wo_number,
+      envPresent: Boolean(process.env.APPROVED_NOTIFICATION_EMAILS),
+    });
     return {
       attempted: false,
       sent: false,
@@ -283,6 +320,12 @@ export async function notifyRemovalApprovedDistribution(
   }
 
   const requestUrl = buildRequestUrl(request.id);
+  console.log("Sending removal approved distribution email", {
+    requestId: request.id,
+    woNumber: request.wo_number,
+    recipients,
+    approvedBy,
+  });
 
   return sendEmail({
     to: recipients,
