@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 type ResourceLine = { resource_type: string; hours: string };
@@ -24,6 +25,7 @@ const labelStyle = {
 } as const;
 
 export default function NewBreakInRequestPage() {
+  const router = useRouter();
   const [woNumber, setWoNumber] = useState("");
   const [woTitle, setWoTitle] = useState("");
   const [reason, setReason] = useState("");
@@ -98,6 +100,23 @@ export default function NewBreakInRequestPage() {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    if (saving) {
+      return;
+    }
+
+    const hasInvalidResource = resources.some(
+      (resource) =>
+        !resource.resource_type.trim() ||
+        !resource.hours.trim() ||
+        Number.isNaN(Number(resource.hours)) ||
+        Number(resource.hours) <= 0
+    );
+
+    if (hasInvalidResource) {
+      setMsg("Each resource row needs a resource type and hours greater than 0.");
+      return;
+    }
+
     setSaving(true);
     setMsg(null);
 
@@ -112,48 +131,37 @@ export default function NewBreakInRequestPage() {
       requestor_email: requestorEmail.trim().toLowerCase() || null,
       photo_name: photoName || null,
       photo_data_url: photoDataUrl || null,
-      resources: resources
-        .filter((r) => r.resource_type.trim() && r.hours.trim())
-        .map((r) => ({
+      resources: resources.map((r) => ({
           resource_type: r.resource_type.trim(),
           hours: Number(r.hours),
         })),
     };
 
-    const res = await fetch("/api/break-in/create", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
+    try {
+      const res = await fetch("/api/break-in/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
 
-    const data = await res.json().catch(() => ({}));
+      const data = await res.json().catch(() => ({}));
 
-    setSaving(false);
-
-    if (!res.ok) {
-      setMsg(data?.error || "Failed to submit");
-      return;
-    }
-
-    if (data?.emailDebug) {
-      const detail = data.emailDebug.providerId
-        ? ` providerId=${data.emailDebug.providerId}`
-        : data.emailDebug.reason
-          ? ` ${data.emailDebug.reason}`
-          : "";
-
-      if (data.emailDebug.sent) {
-        setMsg(`Request created and email send was accepted by Resend.${detail}`);
+      if (!res.ok) {
+        setMsg(data?.error || "Failed to submit");
         return;
       }
-    }
 
-    if (data?.emailWarning) {
-      setMsg(`Request created, but email was not sent: ${data.emailWarning}`);
-      return;
-    }
+      const successMessage = data?.emailWarning
+        ? `Request submitted for approval, but email was not sent: ${data.emailWarning}`
+        : "Request submitted for approval.";
 
-    window.location.href = data?.id ? `/break-in/${data.id}` : "/break-in/dashboard";
+      window.alert(successMessage);
+      router.push("/");
+    } catch {
+      setMsg("Failed to submit");
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -329,12 +337,11 @@ export default function NewBreakInRequestPage() {
                   <input
                     type="file"
                     accept="image/*"
-                    capture="environment"
                     onChange={handlePhotoChange}
                     style={inputStyle}
                   />
                   <p style={{ margin: "10px 0 0", fontSize: 12, color: "#4b5563" }}>
-                    Upload from files or use your camera on supported devices.
+                    On mobile, you can choose a photo from your library or take a new one.
                   </p>
 
                   {photoDataUrl && (
@@ -450,12 +457,17 @@ export default function NewBreakInRequestPage() {
                     onChange={(e) => updateResource(i, "resource_type", e.target.value)}
                     placeholder="Resource type (Mech / Elec / Rigger...)"
                     style={inputStyle}
+                    required
                   />
                   <input
+                    type="number"
+                    min={0.5}
+                    step="0.5"
                     value={r.hours}
                     onChange={(e) => updateResource(i, "hours", e.target.value)}
                     placeholder="Hours"
                     style={inputStyle}
+                    required
                   />
                   <button
                     type="button"

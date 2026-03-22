@@ -96,19 +96,24 @@ export async function POST(req: Request) {
       }))
       .filter((r) => r.resource_type && r.hours > 0);
 
-    if (cleanLines.length > 0) {
-      console.log("Create route inserting resources", { count: cleanLines.length });
-      const { error: linesErr } = await supabase
-        .from("break_in_resources")
-        .insert(cleanLines);
+    if (cleanLines.length === 0 || cleanLines.length !== resources.length) {
+      return NextResponse.json(
+        { error: "At least one resource is required, and each resource must include hours greater than 0." },
+        { status: 400 }
+      );
+    }
 
-      if (linesErr) {
-        console.error("Create route resource insert failed", linesErr);
-        return NextResponse.json(
-          { error: `Header created, but resources failed: ${linesErr.message}` },
-          { status: 500 }
-        );
-      }
+    console.log("Create route inserting resources", { count: cleanLines.length });
+    const { error: linesErr } = await supabase
+      .from("break_in_resources")
+      .insert(cleanLines);
+
+    if (linesErr) {
+      console.error("Create route resource insert failed", linesErr);
+      return NextResponse.json(
+        { error: `Header created, but resources failed: ${linesErr.message}` },
+        { status: 500 }
+      );
     }
 
     const cookieStore = await cookies();

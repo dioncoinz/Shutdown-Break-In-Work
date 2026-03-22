@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createSupabaseDb } from "@/lib/supabase/db";
 import ProgressUpdater from "../../../components/ProgressUpdater";
+import ResourcePlannerEditor from "../../../components/ResourcePlannerEditor";
 
 type ReqRow = {
   id: string;
@@ -364,6 +365,15 @@ export default async function BreakInDetailPage({
         id={id}
         currentPercent={request.progress_percent ?? 0}
         currentStatus={request.status ?? ""}
+      />
+
+      <ResourcePlannerEditor
+        id={id}
+        initialResources={resources.map((resource) => ({
+          id: resource.id,
+          resource_type: resource.resource_type,
+          hours: String(round1(resource.hours)),
+        }))}
       />
 
       <div
