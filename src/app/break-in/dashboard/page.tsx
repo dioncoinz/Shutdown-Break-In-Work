@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { createSupabaseDb } from "@/lib/supabase/db";
+import { ShutdownDataActions } from "@/components/ShutdownDataActions";
+import { shutdownAdminActionsEnabled } from "@/lib/shutdown/admin-actions";
 
 type Row = {
   id: string;
@@ -24,6 +26,16 @@ type RemovalRow = {
 };
 
 type RemovalResourceRow = {
+  request_id: string;
+  hours: number;
+};
+
+type LateWorkRow = {
+  id: string;
+  status: string | null;
+};
+
+type LateWorkResourceRow = {
   request_id: string;
   hours: number;
 };
@@ -67,12 +79,32 @@ async function loadDashboardData() {
       console.error("Error loading removal resources:", removalResErr.message);
     }
 
+    const { data: lateWorkData, error: lateWorkErr } = await supabase
+      .from("late_work_requests")
+      .select("id, status");
+
+    const lateWorkTableMissing = lateWorkErr && isMissingTableError(lateWorkErr.message);
+
+    if (lateWorkErr && !lateWorkTableMissing) {
+      console.error("Error loading late work requests:", lateWorkErr.message);
+    }
+
+    const { data: lateWorkResData, error: lateWorkResErr } = lateWorkTableMissing
+      ? { data: [], error: null }
+      : await supabase.from("late_work_resources").select("request_id, hours");
+
+    if (lateWorkResErr && !isMissingTableError(lateWorkResErr.message)) {
+      console.error("Error loading late work resources:", lateWorkResErr.message);
+    }
+
     return {
       ok: true as const,
       rows: (data ?? []) as Row[],
       resources: (resData ?? []) as ResourceRow[],
       removalRows: (removalData ?? []) as RemovalRow[],
       removalResources: (removalResData ?? []) as RemovalResourceRow[],
+      lateWorkRows: (lateWorkData ?? []) as LateWorkRow[],
+      lateWorkResources: (lateWorkResData ?? []) as LateWorkResourceRow[],
     };
   } catch (error) {
     console.error("Dashboard load failed:", error);
@@ -83,6 +115,13 @@ async function loadDashboardData() {
   }
 }
 
+function isMissingTableError(message: string) {
+  return (
+    message.includes("Could not find the table") ||
+    message.includes("relation") && message.includes("does not exist")
+  );
+}
+
 export default async function BreakInDashboardPage({
   searchParams,
 }: {
@@ -91,6 +130,8 @@ export default async function BreakInDashboardPage({
   const sp = await searchParams;
   const filter = (sp?.filter ?? "ALL").toUpperCase();
   const loaded = await loadDashboardData();
+  const showShutdownAdminActions = shutdownAdminActionsEnabled();
+
   if (!loaded.ok) {
     return (
       <div style={{ padding: 24 }}>
@@ -109,6 +150,8 @@ export default async function BreakInDashboardPage({
   const resources = loaded.resources;
   const removalRows = loaded.removalRows;
   const removalResources = loaded.removalResources;
+  const lateWorkRows = loaded.lateWorkRows;
+  const lateWorkResources = loaded.lateWorkResources;
 
   const plannedById = new Map<string, number>();
   for (const r of resources) {
@@ -123,6 +166,14 @@ export default async function BreakInDashboardPage({
     removedById.set(
       resource.request_id,
       (removedById.get(resource.request_id) ?? 0) + (Number(resource.hours) || 0)
+    );
+  }
+
+  const lateWorkById = new Map<string, number>();
+  for (const resource of lateWorkResources) {
+    lateWorkById.set(
+      resource.request_id,
+      (lateWorkById.get(resource.request_id) ?? 0) + (Number(resource.hours) || 0)
     );
   }
 
@@ -159,6 +210,10 @@ export default async function BreakInDashboardPage({
   const approvedRemovalRows = removalRows.filter((row) => row.status === "APPROVED");
   const approvedRemovalHours = round1(
     approvedRemovalRows.reduce((sum, row) => sum + (removedById.get(row.id) ?? 0), 0)
+  );
+  const approvedLateWorkRows = lateWorkRows.filter((row) => row.status === "APPROVED");
+  const approvedLateWorkHours = round1(
+    approvedLateWorkRows.reduce((sum, row) => sum + (lateWorkById.get(row.id) ?? 0), 0)
   );
 
   const workgroupHours = Array.from(
@@ -203,7 +258,22 @@ export default async function BreakInDashboardPage({
           </h1>
         </div>
 
-        <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
+        <div style={{ display: "flex", gap: 14, alignItems: "center", flexWrap: "wrap" }}>
+          {showShutdownAdminActions ? <ShutdownDataActions /> : null}
+          <Link
+            href="/late-work/new"
+            style={{
+              fontWeight: 600,
+              color: "#fff",
+              textDecoration: "none",
+              padding: "10px 14px",
+              borderRadius: 10,
+              border: "1px solid #1d4ed8",
+              background: "#2563eb",
+            }}
+          >
+            + New Late Work
+          </Link>
           <Link
             href="/work-removal/new"
             style={{
@@ -280,6 +350,11 @@ export default async function BreakInDashboardPage({
           href="/work-removal/dashboard?filter=APPROVED"
           jobs={approvedRemovalRows.length}
           hours={approvedRemovalHours}
+        />
+        <LateWorkSummaryLink
+          href="/late-work/dashboard?filter=APPROVED"
+          jobs={approvedLateWorkRows.length}
+          hours={approvedLateWorkHours}
         />
       </div>
 
@@ -487,6 +562,45 @@ function RemovalSummaryLink({
   );
 }
 
+function LateWorkSummaryLink({
+  href,
+  jobs,
+  hours,
+}: {
+  href: string;
+  jobs: number;
+  hours: number;
+}) {
+  return (
+    <Link href={href} style={{ textDecoration: "none", color: "inherit" }}>
+      <div
+        style={{
+          background: "#eff6ff",
+          padding: 18,
+          borderRadius: 14,
+          boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
+          border: "1px solid #93c5fd",
+        }}
+      >
+        <div style={{ fontSize: 13, color: "#1d4ed8", fontWeight: 800 }}>Approved Late Work</div>
+        <div style={{ marginTop: 10, display: "flex", justifyContent: "space-between", gap: 14 }}>
+          <div>
+            <div style={{ fontSize: 24, fontWeight: 900, color: "#2563eb" }}>{jobs}</div>
+            <div style={{ fontSize: 12, color: "#1e40af", fontWeight: 700 }}>WO added</div>
+          </div>
+          <div style={{ textAlign: "right" }}>
+            <div style={{ fontSize: 24, fontWeight: 900, color: "#1d4ed8" }}>{hours.toFixed(1)}</div>
+            <div style={{ fontSize: 12, color: "#1e40af", fontWeight: 700 }}>hours added</div>
+          </div>
+        </div>
+        <div style={{ marginTop: 8, fontSize: 12, color: "#1e40af", opacity: 0.85 }}>
+          Click to open late work list
+        </div>
+      </div>
+    </Link>
+  );
+}
+
 function Th({ children }: { children?: React.ReactNode }) {
   return (
     <th
@@ -591,6 +705,10 @@ function HoursBar({ planned, done }: { planned: number; done: number }) {
   const remaining = Math.max(0, safePlanned - safeDone);
   const donePct = safePlanned === 0 ? 0 : Math.round((safeDone / safePlanned) * 100);
   const remainingPct = Math.max(0, 100 - donePct);
+  const radius = 42;
+  const circumference = 2 * Math.PI * radius;
+  const doneLen = (donePct / 100) * circumference;
+  const remainingLen = Math.max(0, circumference - doneLen);
 
   return (
     <div
@@ -606,56 +724,79 @@ function HoursBar({ planned, done }: { planned: number; done: number }) {
       <div
         style={{
           marginTop: 10,
-          height: 44,
-          borderRadius: 14,
-          overflow: "hidden",
-          background: "#e5e7eb",
           display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 18,
+          flexWrap: "wrap",
         }}
       >
         <div
           style={{
-            width: `${donePct}%`,
-            minWidth: donePct > 0 ? 90 : 0,
-            height: "100%",
-            background: "#2563eb",
-            color: "#fff",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            padding: donePct > 0 ? "0 12px" : 0,
-            fontSize: 12,
-            fontWeight: 800,
+            position: "relative",
+            width: 120,
+            height: 120,
+            display: "grid",
+            placeItems: "center",
+            flex: "0 0 auto",
           }}
         >
-          {donePct > 0 ? (
-            <>
-              <span>Completed</span>
-              <span>{safeDone.toFixed(1)} h</span>
-            </>
-          ) : null}
+          <svg width="120" height="120" viewBox="0 0 120 120" style={{ transform: "rotate(-90deg)" }}>
+            <circle cx="60" cy="60" r={radius} fill="none" stroke="#e5e7eb" strokeWidth="16" />
+            <circle
+              cx="60"
+              cy="60"
+              r={radius}
+              fill="none"
+              stroke="#2563eb"
+              strokeWidth="16"
+              strokeDasharray={`${doneLen} ${circumference}`}
+            />
+            <circle
+              cx="60"
+              cy="60"
+              r={radius}
+              fill="none"
+              stroke="#cbd5e1"
+              strokeWidth="16"
+              strokeDasharray={`${remainingLen} ${circumference}`}
+              strokeDashoffset={-doneLen}
+            />
+          </svg>
+
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
+              display: "grid",
+              placeItems: "center",
+              textAlign: "center",
+            }}
+          >
+            <div>
+              <div style={{ fontSize: 24, fontWeight: 900, color: "#111", lineHeight: 1 }}>
+                {safePlanned.toFixed(1)}
+              </div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "#4b5563", marginTop: 4 }}>
+                Total hours
+              </div>
+            </div>
+          </div>
         </div>
-        <div
-          style={{
-            width: `${remainingPct}%`,
-            minWidth: remainingPct > 0 ? 90 : 0,
-            height: "100%",
-            background: "#cbd5e1",
-            color: "#0f172a",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            padding: remainingPct > 0 ? "0 12px" : 0,
-            fontSize: 12,
-            fontWeight: 800,
-          }}
-        >
-          {remainingPct > 0 ? (
-            <>
-              <span>Remaining</span>
-              <span>{remaining.toFixed(1)} h</span>
-            </>
-          ) : null}
+
+        <div style={{ display: "grid", gap: 10, flex: "1 1 220px" }}>
+          <LegendRow
+            color="#2563eb"
+            label="Completed"
+            value={Number(safeDone.toFixed(1))}
+            percent={donePct}
+          />
+          <LegendRow
+            color="#6b7280"
+            label="Remaining"
+            value={Number(remaining.toFixed(1))}
+            percent={remainingPct}
+          />
         </div>
       </div>
 

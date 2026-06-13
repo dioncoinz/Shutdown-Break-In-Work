@@ -76,6 +76,20 @@ export default function HomePage() {
             Remove Work
           </Link>
           <Link
+            href="/late-work/new"
+            style={{
+              fontWeight: 700,
+              color: "#fff",
+              textDecoration: "none",
+              padding: "12px 16px",
+              borderRadius: 10,
+              border: "1px solid #1d4ed8",
+              background: "#2563eb",
+            }}
+          >
+            Add Late Work
+          </Link>
+          <Link
             href="/break-in/dashboard"
             style={{
               fontWeight: 700,

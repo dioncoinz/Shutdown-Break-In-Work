@@ -24,16 +24,25 @@ async function loadDashboardData() {
   const supabase = createSupabaseDb();
 
   const { data, error } = await supabase
-    .from("work_removal_requests")
+    .from("late_work_requests")
     .select("id, created_at, wo_number, wo_title, area, priority, workgroup, status, requestor_name")
     .order("created_at", { ascending: false });
 
   if (error) {
+    if (isMissingTableError(error.message)) {
+      return {
+        ok: true as const,
+        rows: [] as Row[],
+        resources: [] as ResourceRow[],
+        needsSetup: true,
+      };
+    }
+
     return { ok: false as const, message: error.message || "Unknown Supabase error" };
   }
 
   const { data: resData, error: resErr } = await supabase
-    .from("work_removal_resources")
+    .from("late_work_resources")
     .select("request_id, hours");
 
   if (resErr) {
@@ -44,10 +53,18 @@ async function loadDashboardData() {
     ok: true as const,
     rows: (data ?? []) as Row[],
     resources: (resData ?? []) as ResourceRow[],
+    needsSetup: false,
   };
 }
 
-export default async function WorkRemovalDashboardPage({
+function isMissingTableError(message: string) {
+  return (
+    message.includes("Could not find the table") ||
+    (message.includes("relation") && message.includes("does not exist"))
+  );
+}
+
+export default async function LateWorkDashboardPage({
   searchParams,
 }: {
   searchParams: Promise<{ filter?: string }>;
@@ -85,23 +102,29 @@ export default async function WorkRemovalDashboardPage({
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
           <img src="/logo.png" alt="Company logo" style={{ height: 48, objectFit: "contain" }} />
-          <h1 style={{ fontSize: 26, fontWeight: 600, color: "#111", margin: 0 }}>Work Removal Dashboard</h1>
+          <h1 style={{ fontSize: 26, fontWeight: 600, color: "#111", margin: 0 }}>Late Work Dashboard</h1>
         </div>
 
         <div style={{ display: "flex", gap: 14, alignItems: "center", flexWrap: "wrap" }}>
           {showShutdownAdminActions ? <ShutdownDataActions /> : null}
           <Link href="/break-in/dashboard" style={buttonStyle(false)}>Break-in Dashboard</Link>
-          <Link href="/late-work/dashboard" style={buttonStyle(false)}>Late Work Dashboard</Link>
-          <Link href="/work-removal/new" style={buttonStyle(true)}>+ New Removal Request</Link>
+          <Link href="/work-removal/dashboard" style={buttonStyle(false)}>Removal Dashboard</Link>
+          <Link href="/late-work/new" style={buttonStyle(true)}>+ New Late Work Request</Link>
         </div>
       </div>
 
       <div style={{ marginTop: 20, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 16 }}>
-        <KpiLink href="/work-removal/dashboard" active={filter === "ALL"} label="Total Requests" value={loaded.rows.length} />
-        <KpiLink href="/work-removal/dashboard?filter=OUTSTANDING" active={filter === "OUTSTANDING"} label="Outstanding" value={loaded.rows.filter((row) => row.status !== "APPROVED" && row.status !== "REJECTED").length} />
-        <KpiLink href="/work-removal/dashboard?filter=APPROVED" active={filter === "APPROVED"} label="Approved WOs Removed" value={approvedRows.length} color="#d97706" />
-        <KpiCard label="Approved Hours Removed" value={approvedHours.toFixed(1)} suffix="h" color="#b45309" />
+        <KpiLink href="/late-work/dashboard" active={filter === "ALL"} label="Total Requests" value={loaded.rows.length} />
+        <KpiLink href="/late-work/dashboard?filter=OUTSTANDING" active={filter === "OUTSTANDING"} label="Outstanding" value={loaded.rows.filter((row) => row.status !== "APPROVED" && row.status !== "REJECTED").length} />
+        <KpiLink href="/late-work/dashboard?filter=APPROVED" active={filter === "APPROVED"} label="Approved Late Work" value={approvedRows.length} color="#2563eb" />
+        <KpiCard label="Approved Late Hours" value={approvedHours.toFixed(1)} suffix="h" color="#1d4ed8" />
       </div>
+
+      {loaded.needsSetup ? (
+        <div style={{ marginTop: 18, background: "#eff6ff", border: "1px solid #93c5fd", borderRadius: 14, padding: 18, color: "#1e3a8a", fontWeight: 700 }}>
+          Late Work is ready in the app, but the Supabase tables have not been created yet. Run the late_work_requests and late_work_resources section in supabase-schema.sql to start using it.
+        </div>
+      ) : null}
 
       <div style={{ marginTop: 22, background: "#fff", borderRadius: 14, boxShadow: "0 2px 8px rgba(0,0,0,0.05)", overflow: "hidden" }}>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
@@ -111,7 +134,7 @@ export default async function WorkRemovalDashboardPage({
               <Th>Title</Th>
               <Th>Area</Th>
               <Th>Status</Th>
-              <Th>Removed hrs</Th>
+              <Th>Late hrs</Th>
               <Th>Requestor</Th>
               <Th />
             </tr>
@@ -125,12 +148,12 @@ export default async function WorkRemovalDashboardPage({
                 <Td><StatusBadge status={row.status || ""} /></Td>
                 <Td>{(plannedById.get(row.id) ?? 0).toFixed(1)}</Td>
                 <Td>{row.requestor_name || "-"}</Td>
-                <Td><Link href={`/work-removal/${row.id}`} style={openButtonStyle}>Open</Link></Td>
+                <Td><Link href={`/late-work/${row.id}`} style={openButtonStyle}>Open</Link></Td>
               </tr>
             ))}
             {filteredRows.length === 0 && (
               <tr>
-                <Td colSpan={7}>No removal requests found.</Td>
+                <Td colSpan={7}>No late work requests found.</Td>
               </tr>
             )}
           </tbody>
@@ -185,7 +208,6 @@ function StatusBadge({ status }: { status: string }) {
   const color =
     status === "APPROVED" ? "#d97706" :
     status === "REJECTED" ? "#dc2626" :
-    status === "MANAGER_REVIEW" ? "#7c3aed" :
     status === "SUPER_REVIEW" ? "#a855f7" :
     status === "COORD_REVIEW" ? "#f59e0b" :
     "#6b7280";

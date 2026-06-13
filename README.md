@@ -21,6 +21,7 @@ Core app:
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `AUTH_COOKIE_SECRET`
 - `ALLOWED_EMAIL_DOMAINS`
+- `SHUTDOWN_ADMIN_ACTIONS_ENABLED` - set to `true` only when you want the Excel export and clear-for-next-shutdown controls visible.
 
 Email approval flow:
 
@@ -55,6 +56,7 @@ APPROVED_NOTIFICATION_EMAILS=operations@greatland.com.au,supervisors@greatland.c
 - Manager approval or any rejection emails the requestor.
 - Manager approval also emails the approved-work notification group.
 - Work removal requests follow the same approval chain and use their own request and dashboard pages.
+- Late work requests use Planner, Coordinator, and Superintendent approval only. Superintendent approval is final.
 
 Approval emails use signed links and do not require login.
 
