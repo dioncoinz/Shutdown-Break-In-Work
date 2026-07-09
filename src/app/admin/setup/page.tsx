@@ -15,7 +15,7 @@ const inputStyle = {
 export default async function AdminSetupPage({
   searchParams,
 }: {
-  searchParams: Promise<{ assigned?: string; created?: string; error?: string }>;
+  searchParams: Promise<{ created?: string; error?: string }>;
 }) {
   const currentUser = await requireShutdownManagerUser();
   const sp = await searchParams;
@@ -109,7 +109,7 @@ export default async function AdminSetupPage({
         </header>
 
         <div style={{ padding: 28 }}>
-          {(sp.assigned || sp.created || sp.error || loaded.needsSetup) && (
+          {(sp.created || sp.error || loaded.needsSetup) && (
             <div
               style={{
                 marginBottom: 18,
@@ -123,10 +123,7 @@ export default async function AdminSetupPage({
             >
               {loaded.needsSetup
                 ? "Run the shutdowns table section in supabase-schema.sql before creating shutdowns."
-                : sp.error ||
-                  (sp.assigned
-                    ? `${sp.assigned} existing request${sp.assigned === "1" ? "" : "s"} assigned to shutdown.`
-                    : "Shutdown created and existing unassigned requests were attached.")}
+                : sp.error || "Shutdown created. Any existing unassigned requests were attached automatically."}
             </div>
           )}
 
@@ -234,7 +231,6 @@ export default async function AdminSetupPage({
                     <Th>Status</Th>
                     <Th>Approvals</Th>
                     <Th>Notes</Th>
-                    <Th>Existing</Th>
                   </tr>
                 </thead>
                 <tbody>
@@ -270,21 +266,13 @@ export default async function AdminSetupPage({
                           </div>
                         </Td>
                         <Td>{shutdown.description || "-"}</Td>
-                        <Td>
-                          <form action="/api/admin/shutdowns/assign-existing" method="post">
-                            <input type="hidden" name="shutdown_id" value={shutdown.id} />
-                            <button type="submit" style={smallButtonStyle}>
-                              Assign unassigned
-                            </button>
-                          </form>
-                        </Td>
                       </tr>
                     );
                   })}
 
                   {shutdowns.length === 0 && (
                     <tr>
-                      <Td colSpan={6}>No shutdowns created yet.</Td>
+                      <Td colSpan={5}>No shutdowns created yet.</Td>
                     </tr>
                   )}
                 </tbody>
@@ -569,15 +557,4 @@ const primaryButtonStyle = {
   color: "#fff",
   fontWeight: 900,
   cursor: "pointer",
-} as const;
-
-const smallButtonStyle = {
-  padding: "8px 10px",
-  borderRadius: 8,
-  border: "1px solid #d1d5db",
-  background: "#fff",
-  color: "#111",
-  fontWeight: 800,
-  cursor: "pointer",
-  whiteSpace: "nowrap",
 } as const;
