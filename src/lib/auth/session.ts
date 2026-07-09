@@ -57,3 +57,23 @@ export function verifySessionToken(token: string | undefined, secret = getSessio
 
   return { email: parts.email };
 }
+
+export function inspectSessionToken(token: string | undefined) {
+  if (!token) {
+    return { hasCookie: false, hasValidParts: false, hasValidSignature: false, email: null };
+  }
+
+  const parts = getSessionTokenParts(token);
+  if (!parts) {
+    return { hasCookie: true, hasValidParts: false, hasValidSignature: false, email: null };
+  }
+
+  const expected = sign(`${parts.email}|${parts.tsStr}`, getSessionSecret());
+
+  return {
+    hasCookie: true,
+    hasValidParts: true,
+    hasValidSignature: safeEqual(parts.sig, expected),
+    email: parts.email,
+  };
+}
