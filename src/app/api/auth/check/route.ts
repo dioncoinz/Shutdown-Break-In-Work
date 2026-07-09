@@ -6,6 +6,7 @@ import { inspectSessionToken, SESSION_COOKIE } from "@/lib/auth/session";
 export async function GET() {
   const cookieStore = await cookies();
   const inspected = inspectSessionToken(cookieStore.get(SESSION_COOKIE)?.value);
+  const testCookie = cookieStore.get("breakinz_cookie_test")?.value || null;
   const user =
     inspected.hasValidSignature && inspected.email
       ? await getActiveUserByEmail(inspected.email)
@@ -13,6 +14,7 @@ export async function GET() {
 
   return NextResponse.json({
     cookieName: SESSION_COOKIE,
+    hasTestCookie: testCookie === "ok",
     hasCookie: inspected.hasCookie,
     hasValidParts: inspected.hasValidParts,
     hasValidSignature: inspected.hasValidSignature,
