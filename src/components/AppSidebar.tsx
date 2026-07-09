@@ -60,6 +60,7 @@ function SideLink({ href, label, active }: { href: string; label: string; active
   return (
     <Link
       href={href}
+      prefetch={false}
       style={{
         display: "flex",
         alignItems: "center",
@@ -119,6 +120,7 @@ function RequestSubLink({
   return (
     <Link
       href={href}
+      prefetch={false}
       style={{
         ...requestSubLinkStyle,
         color: active ? "#fff" : "#a8b3bd",

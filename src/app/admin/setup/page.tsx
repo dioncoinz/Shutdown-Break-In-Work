@@ -311,6 +311,7 @@ function SideLink({
   return (
     <Link
       href={href}
+      prefetch={false}
       style={{
         display: "flex",
         alignItems: "center",
@@ -395,6 +396,7 @@ function RequestSubLink({ href, children }: { href: string; children: React.Reac
   return (
     <Link
       href={href}
+      prefetch={false}
       style={{
         minHeight: 28,
         display: "flex",

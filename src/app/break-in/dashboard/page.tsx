@@ -413,6 +413,7 @@ function SideLink({ href, label, active }: { href: string; label: string; active
   return (
     <Link
       href={href}
+      prefetch={false}
       style={{
         display: "flex",
         alignItems: "center",
@@ -446,13 +447,13 @@ function RequestGroup() {
         Requests
       </summary>
       <div style={requestSubnavStyle}>
-        <Link href="/break-in/dashboard" style={requestSubLinkStyle}>
+        <Link href="/break-in/dashboard" prefetch={false} style={requestSubLinkStyle}>
           Emergent
         </Link>
-        <Link href="/late-work/dashboard" style={requestSubLinkStyle}>
+        <Link href="/late-work/dashboard" prefetch={false} style={requestSubLinkStyle}>
           Late Work
         </Link>
-        <Link href="/work-removal/dashboard" style={requestSubLinkStyle}>
+        <Link href="/work-removal/dashboard" prefetch={false} style={requestSubLinkStyle}>
           Work Removal
         </Link>
       </div>
