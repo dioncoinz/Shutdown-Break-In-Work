@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
 import { buildShutdownExcelHtml } from "@/lib/shutdown/export";
 import { shutdownAdminActionsEnabled } from "@/lib/shutdown/admin-actions";
+import { requireApiUser } from "@/lib/auth/current-user";
 
 export async function GET() {
+  const auth = await requireApiUser();
+  if (auth.response) return auth.response;
+
   if (!shutdownAdminActionsEnabled()) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }

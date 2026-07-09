@@ -1,10 +1,18 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 type ResourceLine = { resource_type: string; hours: string };
+type ShutdownOption = {
+  id: string;
+  name: string;
+  start_date: string | null;
+  end_date: string | null;
+  is_active: boolean;
+};
 
 const inputStyle = {
   width: "100%",
@@ -34,9 +42,42 @@ export default function NewWorkRemovalRequestPage() {
   const [priority, setPriority] = useState("P2");
   const [requestorName, setRequestorName] = useState("");
   const [requestorEmail, setRequestorEmail] = useState("");
+  const [shutdownId, setShutdownId] = useState("");
+  const [shutdowns, setShutdowns] = useState<ShutdownOption[]>([]);
   const [resources, setResources] = useState<ResourceLine[]>([{ resource_type: "Mech", hours: "4" }]);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const requestedShutdownId = new URLSearchParams(window.location.search).get("shutdown") || "";
+
+    async function loadShutdowns() {
+      const res = await fetch("/api/shutdowns");
+      const data = await res.json().catch(() => ({}));
+      const loadedShutdowns = Array.isArray(data.shutdowns) ? data.shutdowns : [];
+
+      if (cancelled) return;
+
+      setShutdowns(loadedShutdowns);
+      setShutdownId((current) => {
+        if (current) return current;
+        if (requestedShutdownId && loadedShutdowns.some((shutdown: ShutdownOption) => shutdown.id === requestedShutdownId)) {
+          return requestedShutdownId;
+        }
+
+        return loadedShutdowns.find((shutdown: ShutdownOption) => shutdown.is_active)?.id || loadedShutdowns[0]?.id || "";
+      });
+    }
+
+    loadShutdowns().catch(() => {
+      if (!cancelled) setShutdowns([]);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   function updateResource(i: number, field: keyof ResourceLine, value: string) {
     setResources((prev) => prev.map((r, idx) => (idx === i ? { ...r, [field]: value } : r)));
@@ -72,6 +113,7 @@ export default function NewWorkRemovalRequestPage() {
 
     const payload = {
       wo_number: woNumber.trim(),
+      shutdown_id: shutdownId || null,
       wo_title: woTitle.trim(),
       reason: reason.trim(),
       consequence: consequence.trim(),
@@ -116,9 +158,14 @@ export default function NewWorkRemovalRequestPage() {
       <div style={{ maxWidth: 980, margin: "0 auto" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
           <div>
-            <p style={{ margin: 0, fontSize: 12, fontWeight: 800, letterSpacing: 0.6, textTransform: "uppercase", color: "#6b7280" }}>
-              Work removal workflow
-            </p>
+            <Image
+              src="/Breakinz_png.png"
+              alt="Breakinz"
+              width={526}
+              height={215}
+              priority
+              style={{ display: "block", width: 180, height: "auto" }}
+            />
             <h1 style={{ margin: "6px 0 0", fontSize: 28, fontWeight: 700, color: "#111" }}>
               New Work Removal Request
             </h1>
@@ -138,6 +185,14 @@ export default function NewWorkRemovalRequestPage() {
 
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 16 }}>
               <Field label="WO Number"><input value={woNumber} onChange={(e) => setWoNumber(e.target.value)} placeholder="Enter work order number" style={inputStyle} required /></Field>
+              <Field label="Shutdown">
+                <select value={shutdownId} onChange={(e) => setShutdownId(e.target.value)} style={inputStyle}>
+                  {shutdowns.length === 0 ? <option value="">No shutdowns found</option> : null}
+                  {shutdowns.map((shutdown) => (
+                    <option key={shutdown.id} value={shutdown.id}>{formatShutdownOption(shutdown)}</option>
+                  ))}
+                </select>
+              </Field>
               <Field label="WO Title"><input value={woTitle} onChange={(e) => setWoTitle(e.target.value)} placeholder="Enter work order title" style={inputStyle} /></Field>
               <Field label="Area"><input value={area} onChange={(e) => setArea(e.target.value)} placeholder="Area (331 / 332 / etc)" style={inputStyle} /></Field>
               <Field label="Priority">
@@ -214,4 +269,15 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       {children}
     </label>
   );
+}
+
+function formatShutdownOption(shutdown: ShutdownOption) {
+  const dates =
+    shutdown.start_date && shutdown.end_date
+      ? ` - ${shutdown.start_date} to ${shutdown.end_date}`
+      : shutdown.start_date || shutdown.end_date
+        ? ` - ${shutdown.start_date || shutdown.end_date}`
+        : "";
+
+  return `${shutdown.name}${shutdown.is_active ? " (Active)" : ""}${dates}`;
 }

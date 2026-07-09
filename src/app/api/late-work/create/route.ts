@@ -4,6 +4,7 @@ import { notifyLateWorkStageApprovers } from "@/lib/email/late-work-notification
 import { getSessionTokenParts, SESSION_COOKIE } from "@/lib/auth/session";
 import type { LateWorkRequestRecord } from "@/lib/late-work/workflow";
 import { createSupabaseDb } from "@/lib/supabase/db";
+import { getDefaultShutdownId, getShutdownById, hasShutdownStarted } from "@/lib/shutdown/setup";
 
 type ResourceLine = { resource_type: string; hours: number };
 
@@ -16,6 +17,7 @@ export async function POST(req: Request) {
       consequence: string;
       area?: string;
       priority?: string;
+      shutdown_id?: string;
       requestor_name?: string;
       requestor_email?: string;
       resources?: ResourceLine[];
@@ -49,11 +51,29 @@ export async function POST(req: Request) {
     }
 
     const supabase = createSupabaseDb();
+    const shutdownId = body.shutdown_id?.trim() || (await getDefaultShutdownId());
+    if (shutdownId) {
+      const { shutdown, error } = await getShutdownById(shutdownId);
+      if (error || !shutdown) {
+        return NextResponse.json(
+          { error: error || "Shutdown not found." },
+          { status: 400 }
+        );
+      }
+
+      if (hasShutdownStarted(shutdown)) {
+        return NextResponse.json(
+          { error: "Late work can no longer be submitted once the shutdown has started. Create an emergent request instead." },
+          { status: 400 }
+        );
+      }
+    }
 
     const { data: header, error: headerErr } = await supabase
       .from("late_work_requests")
       .insert({
         wo_number: body.wo_number,
+        shutdown_id: shutdownId,
         wo_title: body.wo_title,
         reason: body.reason,
         consequence: body.consequence,
@@ -64,7 +84,7 @@ export async function POST(req: Request) {
         status: "SUBMITTED",
       })
       .select(
-        "id, wo_number, wo_title, reason, consequence, area, priority, workgroup, status, requestor_name, requestor_email"
+        "id, shutdown_id, wo_number, wo_title, reason, consequence, area, priority, workgroup, status, requestor_name, requestor_email"
       )
       .single();
 

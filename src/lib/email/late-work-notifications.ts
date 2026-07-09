@@ -1,4 +1,5 @@
 import { createApprovalToken } from "@/lib/email/approval-links";
+import { recordEmailSent } from "@/lib/email/tracking";
 import type { Decision, ReviewStage } from "@/lib/break-in/decision";
 import {
   LateWorkRequestRecord,
@@ -46,11 +47,15 @@ function buildEmailApprovalUrl({
 }
 
 async function sendEmail({
+  context,
   to,
   subject,
   html,
   text,
 }: {
+  context?: {
+    request: LateWorkRequestRecord;
+  };
   to: string[];
   subject: string;
   html: string;
@@ -130,6 +135,17 @@ async function sendEmail({
     subject,
   });
 
+  if (context) {
+    await recordEmailSent({
+      provider_id: body.id,
+      recipient_count: to.length,
+      request_id: context.request.id,
+      request_type: "late_work",
+      shutdown_id: context.request.shutdown_id,
+      subject,
+    });
+  }
+
   return { attempted: true, sent: true, providerId: body.id };
 }
 
@@ -206,6 +222,7 @@ export async function notifyLateWorkStageApprovers(
     .join("");
 
   return sendEmail({
+    context: { request },
     to: recipients,
     subject: `Late work approval required: ${request.wo_number}`,
     html: `
@@ -267,6 +284,7 @@ export async function notifyLateWorkRequestorOutcome(
   const title = outcome === "APPROVED" ? "approved" : "rejected";
 
   return sendEmail({
+    context: { request },
     to: [requestorEmail],
     subject: `Late work request ${title}: ${request.wo_number}`,
     html: `

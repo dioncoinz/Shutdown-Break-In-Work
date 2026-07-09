@@ -1,10 +1,18 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 type ResourceLine = { resource_type: string; hours: string };
+type ShutdownOption = {
+  id: string;
+  name: string;
+  start_date: string | null;
+  end_date: string | null;
+  is_active: boolean;
+};
 
 const inputStyle = {
   width: "100%",
@@ -34,9 +42,44 @@ export default function NewLateWorkRequestPage() {
   const [priority, setPriority] = useState("P2");
   const [requestorName, setRequestorName] = useState("");
   const [requestorEmail, setRequestorEmail] = useState("");
+  const [shutdownId, setShutdownId] = useState("");
+  const [shutdowns, setShutdowns] = useState<ShutdownOption[]>([]);
   const [resources, setResources] = useState<ResourceLine[]>([{ resource_type: "Mech", hours: "4" }]);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const selectedShutdown = shutdowns.find((shutdown) => shutdown.id === shutdownId) || null;
+  const shutdownStarted = selectedShutdown ? hasShutdownStarted(selectedShutdown) : false;
+
+  useEffect(() => {
+    let cancelled = false;
+    const requestedShutdownId = new URLSearchParams(window.location.search).get("shutdown") || "";
+
+    async function loadShutdowns() {
+      const res = await fetch("/api/shutdowns");
+      const data = await res.json().catch(() => ({}));
+      const loadedShutdowns = Array.isArray(data.shutdowns) ? data.shutdowns : [];
+
+      if (cancelled) return;
+
+      setShutdowns(loadedShutdowns);
+      setShutdownId((current) => {
+        if (current) return current;
+        if (requestedShutdownId && loadedShutdowns.some((shutdown: ShutdownOption) => shutdown.id === requestedShutdownId)) {
+          return requestedShutdownId;
+        }
+
+        return loadedShutdowns.find((shutdown: ShutdownOption) => shutdown.is_active)?.id || loadedShutdowns[0]?.id || "";
+      });
+    }
+
+    loadShutdowns().catch(() => {
+      if (!cancelled) setShutdowns([]);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   function updateResource(i: number, field: keyof ResourceLine, value: string) {
     setResources((prev) => prev.map((r, idx) => (idx === i ? { ...r, [field]: value } : r)));
@@ -67,11 +110,22 @@ export default function NewLateWorkRequestPage() {
       return;
     }
 
+    if (!selectedShutdown) {
+      setMsg("Select a shutdown before submitting late work.");
+      return;
+    }
+
+    if (shutdownStarted) {
+      setMsg("This shutdown has started. Please create an emergent request instead of late work.");
+      return;
+    }
+
     setSaving(true);
     setMsg(null);
 
     const payload = {
       wo_number: woNumber.trim(),
+      shutdown_id: shutdownId || null,
       wo_title: woTitle.trim(),
       reason: reason.trim(),
       consequence: consequence.trim(),
@@ -116,15 +170,25 @@ export default function NewLateWorkRequestPage() {
       <div style={{ maxWidth: 980, margin: "0 auto" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
           <div>
-            <p style={{ margin: 0, fontSize: 12, fontWeight: 800, letterSpacing: 0.6, textTransform: "uppercase", color: "#6b7280" }}>
-              Late work workflow
-            </p>
+            <Image
+              src="/Breakinz_png.png"
+              alt="Breakinz"
+              width={526}
+              height={215}
+              priority
+              style={{ display: "block", width: 180, height: "auto" }}
+            />
             <h1 style={{ margin: "6px 0 0", fontSize: 28, fontWeight: 700, color: "#111" }}>
               New Late Work Request
             </h1>
             <p style={{ margin: "10px 0 0", color: "#4b5563", lineHeight: 1.5 }}>
               Capture the work order details, why the work is being added late, and the hours being added.
             </p>
+            {shutdownStarted ? (
+              <p style={{ margin: "10px 0 0", color: "#991b1b", lineHeight: 1.5, fontWeight: 800 }}>
+                This shutdown has started. Added work must now be submitted as an emergent request.
+              </p>
+            ) : null}
           </div>
 
           <Link href="/break-in/dashboard" style={{ fontWeight: 600, color: "#111", textDecoration: "none", padding: "10px 14px", borderRadius: 10, border: "1px solid rgba(0,0,0,0.12)", background: "#fff" }}>
@@ -138,6 +202,14 @@ export default function NewLateWorkRequestPage() {
 
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 16 }}>
               <Field label="WO Number"><input value={woNumber} onChange={(e) => setWoNumber(e.target.value)} placeholder="Enter work order number" style={inputStyle} required /></Field>
+              <Field label="Shutdown">
+                <select value={shutdownId} onChange={(e) => setShutdownId(e.target.value)} style={inputStyle}>
+                  {shutdowns.length === 0 ? <option value="">No shutdowns found</option> : null}
+                  {shutdowns.map((shutdown) => (
+                    <option key={shutdown.id} value={shutdown.id}>{formatShutdownOption(shutdown)}</option>
+                  ))}
+                </select>
+              </Field>
               <Field label="WO Title"><input value={woTitle} onChange={(e) => setWoTitle(e.target.value)} placeholder="Enter work order title" style={inputStyle} /></Field>
               <Field label="Area"><input value={area} onChange={(e) => setArea(e.target.value)} placeholder="Area (331 / 332 / etc)" style={inputStyle} /></Field>
               <Field label="Priority">
@@ -193,9 +265,27 @@ export default function NewLateWorkRequestPage() {
               )}
             </div>
 
-            <button type="submit" disabled={saving} style={{ padding: "12px 18px", borderRadius: 10, border: "1px solid #b45309", background: saving ? "#fcd34d" : "#d97706", color: "#fff", fontWeight: 700, fontSize: 14, cursor: saving ? "not-allowed" : "pointer" }}>
-              {saving ? "Saving..." : "Submit Late Work Request"}
+            <button
+              type="submit"
+              disabled={saving || shutdownStarted}
+              style={{
+                padding: "12px 18px",
+                borderRadius: 10,
+                border: shutdownStarted ? "1px solid #d1d5db" : "1px solid #b45309",
+                background: shutdownStarted ? "#9ca3af" : saving ? "#fcd34d" : "#d97706",
+                color: "#fff",
+                fontWeight: 700,
+                fontSize: 14,
+                cursor: saving || shutdownStarted ? "not-allowed" : "pointer",
+              }}
+            >
+              {shutdownStarted ? "Late Work Closed" : saving ? "Saving..." : "Submit Late Work Request"}
             </button>
+            {shutdownStarted ? (
+              <Link href={`/break-in/new?shutdown=${shutdownId}`} style={{ padding: "12px 18px", borderRadius: 10, border: "1px solid #15803d", background: "#16a34a", color: "#fff", fontWeight: 800, textDecoration: "none" }}>
+                Create emergent request
+              </Link>
+            ) : null}
           </div>
         </form>
       </div>
@@ -214,4 +304,38 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       {children}
     </label>
   );
+}
+
+function formatShutdownOption(shutdown: ShutdownOption) {
+  const dates =
+    shutdown.start_date && shutdown.end_date
+      ? ` - ${shutdown.start_date} to ${shutdown.end_date}`
+      : shutdown.start_date || shutdown.end_date
+        ? ` - ${shutdown.start_date || shutdown.end_date}`
+        : "";
+
+  return `${shutdown.name}${shutdown.is_active ? " (Active)" : ""}${dates}`;
+}
+
+function hasShutdownStarted(shutdown: Pick<ShutdownOption, "start_date">) {
+  if (!shutdown.start_date) {
+    return false;
+  }
+
+  return shutdown.start_date <= getTodayDateKey();
+}
+
+function getTodayDateKey() {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Australia/Perth",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+
+  const year = parts.find((part) => part.type === "year")?.value;
+  const month = parts.find((part) => part.type === "month")?.value;
+  const day = parts.find((part) => part.type === "day")?.value;
+
+  return `${year}-${month}-${day}`;
 }

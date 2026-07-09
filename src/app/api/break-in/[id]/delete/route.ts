@@ -1,31 +1,69 @@
 import { NextResponse } from "next/server";
-import { createSupabaseDb } from "@/lib/supabase/db";
+import { requireApiShutdownManagerUser } from "@/lib/auth/current-user";
+import { deleteRequestWithAudit } from "@/lib/request-delete";
+
+export async function POST(
+  req: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const auth = await requireApiShutdownManagerUser();
+  if (auth.response) return auth.response;
+
+  const { id } = await params;
+  const form = await req.formData();
+  const reason = String(form.get("reason") || "");
+
+  try {
+    await deleteRequestWithAudit({
+      actor: auth.user?.email || auth.user?.full_name || "Unknown user",
+      id,
+      reason,
+      requestType: "emergent",
+      resourceTable: "break_in_resources",
+      table: "break_in_requests",
+    });
+
+    return NextResponse.redirect(new URL("/break-in/dashboard?deleted=1", req.url), { status: 303 });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Failed to delete request.";
+    return NextResponse.redirect(
+      new URL(`/break-in/${id}?deleteError=${encodeURIComponent(message)}`, req.url),
+      { status: 303 },
+    );
+  }
+}
 
 export async function DELETE(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const auth = await requireApiShutdownManagerUser();
+  if (auth.response) return auth.response;
+
   const { id } = await params;
+  const body = await readJson(req);
 
-  const supabase = createSupabaseDb();
+  try {
+    await deleteRequestWithAudit({
+      actor: auth.user?.email || auth.user?.full_name || "Unknown user",
+      id,
+      reason: String(body.reason || ""),
+      requestType: "emergent",
+      resourceTable: "break_in_resources",
+      table: "break_in_requests",
+    });
 
-  const { error: resourceError } = await supabase
-    .from("break_in_resources")
-    .delete()
-    .eq("request_id", id);
-
-  if (resourceError) {
-    return NextResponse.json({ error: resourceError.message }, { status: 500 });
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Failed to delete request.";
+    return NextResponse.json({ error: message }, { status: 400 });
   }
+}
 
-  const { error } = await supabase
-    .from("break_in_requests")
-    .delete()
-    .eq("id", id);
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+async function readJson(req: Request) {
+  try {
+    return (await req.json()) as { reason?: string };
+  } catch {
+    return {};
   }
-
-  return NextResponse.json({ ok: true });
 }

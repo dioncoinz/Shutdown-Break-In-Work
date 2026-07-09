@@ -8,6 +8,7 @@ export type WorkRemovalStatus =
 
 export type WorkRemovalRequestRecord = {
   id: string;
+  shutdown_id: string | null;
   wo_number: string;
   wo_title: string | null;
   reason: string | null;

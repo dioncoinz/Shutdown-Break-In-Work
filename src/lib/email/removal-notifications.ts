@@ -1,4 +1,5 @@
 import { createApprovalToken } from "@/lib/email/approval-links";
+import { recordEmailSent } from "@/lib/email/tracking";
 import {
   parseEmailList as parseBreakInEmailList,
 } from "@/lib/break-in/workflow";
@@ -49,11 +50,15 @@ function buildEmailApprovalUrl({
 }
 
 async function sendEmail({
+  context,
   to,
   subject,
   html,
   text,
 }: {
+  context?: {
+    request: WorkRemovalRequestRecord;
+  };
   to: string[];
   subject: string;
   html: string;
@@ -133,6 +138,17 @@ async function sendEmail({
     subject,
   });
 
+  if (context) {
+    await recordEmailSent({
+      provider_id: body.id,
+      recipient_count: to.length,
+      request_id: context.request.id,
+      request_type: "work_removal",
+      shutdown_id: context.request.shutdown_id,
+      subject,
+    });
+  }
+
   return { attempted: true, sent: true, providerId: body.id };
 }
 
@@ -209,6 +225,7 @@ export async function notifyRemovalStageApprovers(
     .join("");
 
   return sendEmail({
+    context: { request },
     to: recipients,
     subject: `Work removal approval required: ${request.wo_number}`,
     html: `
@@ -270,6 +287,7 @@ export async function notifyRemovalRequestorOutcome(
   const title = outcome === "APPROVED" ? "approved" : "rejected";
 
   return sendEmail({
+    context: { request },
     to: [requestorEmail],
     subject: `Work removal request ${title}: ${request.wo_number}`,
     html: `
@@ -328,6 +346,7 @@ export async function notifyRemovalApprovedDistribution(
   });
 
   return sendEmail({
+    context: { request },
     to: recipients,
     subject: `Work removal approved: ${request.wo_number}`,
     html: `

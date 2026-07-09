@@ -10,12 +10,20 @@ export default function DeleteButton({ id }: { id: string }) {
     const ok = window.confirm("Delete this request? This cannot be undone.");
     if (!ok) return;
 
+    const reason = window.prompt("Enter the reason for deleting this request:");
+    if (!reason?.trim()) {
+      setMsg("A deletion reason is required.");
+      return;
+    }
+
     setBusy(true);
     setMsg(null);
 
     try {
       const res = await fetch(`/api/break-in/${id}/delete`, {
         method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason }),
         credentials: "same-origin",
       });
 

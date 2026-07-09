@@ -10,6 +10,7 @@ export type BreakInStatus =
 
 export type BreakInRequestRecord = {
   id: string;
+  shutdown_id: string | null;
   wo_number: string;
   wo_title: string | null;
   reason: string | null;

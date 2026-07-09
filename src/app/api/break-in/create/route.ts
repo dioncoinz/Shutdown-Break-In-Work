@@ -4,6 +4,7 @@ import { notifyStageApprovers } from "@/lib/email/notifications";
 import { getSessionTokenParts, SESSION_COOKIE } from "@/lib/auth/session";
 import type { BreakInRequestRecord } from "@/lib/break-in/workflow";
 import { createSupabaseDb } from "@/lib/supabase/db";
+import { getDefaultShutdownId, getShutdownById, hasShutdownStarted } from "@/lib/shutdown/setup";
 
 
 type ResourceLine = { resource_type: string; hours: number };
@@ -19,6 +20,7 @@ export async function POST(req: Request) {
       priority?: string;
       requestor_name?: string;
       requestor_email?: string;
+      shutdown_id?: string;
       photo_name?: string;
       photo_data_url?: string;
       resources?: ResourceLine[];
@@ -72,12 +74,23 @@ export async function POST(req: Request) {
     }
 
     const supabase = createSupabaseDb();
+    const shutdownId = body.shutdown_id?.trim() || (await getDefaultShutdownId());
+    if (shutdownId) {
+      const { shutdown } = await getShutdownById(shutdownId);
+      if (shutdown && !hasShutdownStarted(shutdown)) {
+        return NextResponse.json(
+          { error: "Emergent requests can only be created from the shutdown start date." },
+          { status: 400 }
+        );
+      }
+    }
     console.log("Create route inserting header");
 
     const { data: header, error: headerErr } = await supabase
       .from("break_in_requests")
       .insert({
         wo_number: body.wo_number,
+        shutdown_id: shutdownId,
         wo_title: body.wo_title,
         reason: body.reason,
         consequence: body.consequence,
@@ -90,7 +103,7 @@ export async function POST(req: Request) {
         status: "SUBMITTED",
       })
       .select(
-        "id, wo_number, wo_title, reason, consequence, area, priority, workgroup, status, requestor_name, requestor_email"
+        "id, shutdown_id, wo_number, wo_title, reason, consequence, area, priority, workgroup, status, requestor_name, requestor_email"
       )
       .single();
 

@@ -7,6 +7,7 @@ export type LateWorkStatus =
 
 export type LateWorkRequestRecord = {
   id: string;
+  shutdown_id: string | null;
   wo_number: string;
   wo_title: string | null;
   reason: string | null;

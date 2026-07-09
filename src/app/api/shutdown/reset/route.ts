@@ -1,11 +1,15 @@
 import { NextResponse } from "next/server";
 import { createSupabaseDb } from "@/lib/supabase/db";
 import { shutdownAdminActionsEnabled } from "@/lib/shutdown/admin-actions";
+import { requireApiUser } from "@/lib/auth/current-user";
 
 const CONFIRMATION = "NEXT SHUTDOWN";
 const ZERO_UUID = "00000000-0000-0000-0000-000000000000";
 
 export async function DELETE(req: Request) {
+  const auth = await requireApiUser();
+  if (auth.response) return auth.response;
+
   if (!shutdownAdminActionsEnabled()) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }

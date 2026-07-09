@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Breakinz",
-  description: "Shutdown break-in workflow built by Valeron",
+  description: "Shutdown emergent workflow built by Valeron",
 };
 
 export default function RootLayout({

@@ -1,5 +1,6 @@
 import { BreakInRequestRecord, BreakInStatus, getStageConfig, parseEmailList } from "@/lib/break-in/workflow";
 import { createApprovalToken } from "@/lib/email/approval-links";
+import { recordEmailSent } from "@/lib/email/tracking";
 import type { Decision, ReviewStage } from "@/lib/break-in/decision";
 
 type NotificationResult = {
@@ -41,11 +42,15 @@ function buildEmailApprovalUrl({
 }
 
 async function sendEmail({
+  context,
   to,
   subject,
   html,
   text,
 }: {
+  context?: {
+    request: BreakInRequestRecord;
+  };
   to: string[];
   subject: string;
   html: string;
@@ -132,6 +137,17 @@ async function sendEmail({
     subject,
   });
 
+  if (context) {
+    await recordEmailSent({
+      provider_id: body.id,
+      recipient_count: to.length,
+      request_id: context.request.id,
+      request_type: "emergent",
+      shutdown_id: context.request.shutdown_id,
+      subject,
+    });
+  }
+
   return { attempted: true, sent: true, providerId: body.id };
 }
 
@@ -208,11 +224,12 @@ export async function notifyStageApprovers(
     .join("");
 
   return sendEmail({
+    context: { request },
     to: recipients,
-    subject: `Break-in approval required: ${request.wo_number}`,
+    subject: `Emergent approval required: ${request.wo_number}`,
     html: `
       <div style="font-family: Arial, Helvetica, sans-serif; color: #111; line-height: 1.5;">
-        <p><strong>Break-in approval required</strong></p>
+        <p><strong>Emergent approval required</strong></p>
         <p>Review stage: ${escapeHtml(stage.label)}</p>
         <p>Submitted by: ${escapeHtml(triggeredBy)}</p>
         ${formatRequestSummary(request)}
@@ -224,7 +241,7 @@ export async function notifyStageApprovers(
       </div>
     `,
     text: [
-      "Break-in approval required",
+      "Emergent approval required",
       "",
       `Review stage: ${stage.label}`,
       `Submitted by: ${triggeredBy}`,
@@ -273,11 +290,12 @@ export async function notifyRequestorOutcome(
   const title = outcome === "APPROVED" ? "approved" : "rejected";
 
   return sendEmail({
+    context: { request },
     to: [requestorEmail],
-    subject: `Break-in request ${title}: ${request.wo_number}`,
+    subject: `Emergent request ${title}: ${request.wo_number}`,
     html: `
       <div style="font-family: Arial, Helvetica, sans-serif; color: #111; line-height: 1.5;">
-        <p><strong>Break-in request ${escapeHtml(title)}</strong></p>
+        <p><strong>Emergent request ${escapeHtml(title)}</strong></p>
         <p>${escapeHtml(decidedBy)} marked this request as ${escapeHtml(outcome)}.</p>
         ${comment ? `<p><strong>Comment:</strong><br/>${escapeHtml(comment)}</p>` : ""}
         ${formatRequestSummary(request)}
@@ -285,7 +303,7 @@ export async function notifyRequestorOutcome(
       </div>
     `,
     text: [
-      `Break-in request ${title}`,
+      `Emergent request ${title}`,
       "",
       `${decidedBy} marked this request as ${outcome}.`,
       ...(comment ? ["", `Comment: ${comment}`] : []),
@@ -331,21 +349,22 @@ export async function notifyApprovedDistribution(
   });
 
   return sendEmail({
+    context: { request },
     to: recipients,
-    subject: `Break-in approved for work: ${request.wo_number}`,
+    subject: `Emergent approved for work: ${request.wo_number}`,
     html: `
       <div style="font-family: Arial, Helvetica, sans-serif; color: #111; line-height: 1.5;">
-        <p><strong>Break-in work approved</strong></p>
-        <p>${escapeHtml(approvedBy)} approved this break-in request for work.</p>
+        <p><strong>Emergent work approved</strong></p>
+        <p>${escapeHtml(approvedBy)} approved this emergent request for work.</p>
         ${comment ? `<p><strong>Manager comment:</strong><br/>${escapeHtml(comment)}</p>` : ""}
         ${formatRequestSummary(request)}
         <p style="margin-top: 14px;">Open request: <a href="${requestUrl}">${requestUrl}</a></p>
       </div>
     `,
     text: [
-      "Break-in work approved",
+      "Emergent work approved",
       "",
-      `${approvedBy} approved this break-in request for work.`,
+      `${approvedBy} approved this emergent request for work.`,
       ...(comment ? ["", `Manager comment: ${comment}`] : []),
       "",
       formatRequestSummaryText(request),

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createSupabaseDb } from "@/lib/supabase/db";
+import { requireApiUser } from "@/lib/auth/current-user";
 
 type ResourceLine = {
   id?: string;
@@ -11,6 +12,9 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const auth = await requireApiUser();
+  if (auth.response) return auth.response;
+
   const { id } = await params;
   const body = (await req.json()) as { resources?: ResourceLine[] };
   const resources = Array.isArray(body.resources) ? body.resources : [];

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { getBreakInRequestById } from "@/lib/break-in/server";
 import { verifyApprovalToken } from "@/lib/email/approval-links";
 import EmailApprovalForm from "./EmailApprovalForm";
@@ -33,9 +34,14 @@ export default async function EmailApprovalPage({
           padding: 28,
         }}
       >
-        <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: 0.6, textTransform: "uppercase", color: "#6b7280" }}>
-          Break-in workflow
-        </div>
+        <Image
+          src="/Breakinz_png.png"
+          alt="Breakinz"
+          width={526}
+          height={215}
+          priority
+          style={{ display: "block", width: 180, height: "auto" }}
+        />
         <h1 style={{ margin: "8px 0 0", fontSize: 28, fontWeight: 800, color: "#111" }}>
           {parsed.data.decision === "APPROVE" ? "Approve request" : "Reject request"}
         </h1>

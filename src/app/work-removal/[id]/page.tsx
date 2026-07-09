@@ -1,6 +1,9 @@
 import Link from "next/link";
 import { createSupabaseDb } from "@/lib/supabase/db";
+import { AppSidebar } from "@/components/AppSidebar";
+import { RequestDeletePanel } from "@/components/RequestDeletePanel";
 import ResourcePlannerEditor from "../../../components/ResourcePlannerEditor";
+import { canManageShutdowns, requireCurrentUser } from "@/lib/auth/current-user";
 
 type ReqRow = {
   id: string;
@@ -66,8 +69,16 @@ function statusColor(status: string) {
   return "#6b7280";
 }
 
-export default async function WorkRemovalDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function WorkRemovalDetailPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ approvalError?: string; approvalSaved?: string; deleteError?: string; detailsError?: string; detailsUpdated?: string; emailWarning?: string; reopened?: string }>;
+}) {
+  const currentUser = await requireCurrentUser();
   const { id } = await params;
+  const sp = await searchParams;
   const loaded = await loadRequestDetail(id);
   if (!loaded.ok) {
     return (
@@ -83,39 +94,44 @@ export default async function WorkRemovalDetailPage({ params }: { params: Promis
   const removedHours = round1(resources.reduce((sum, resource) => sum + (Number(resource.hours) || 0), 0));
   const st = request.status ?? "UNKNOWN";
   const stCol = statusColor(st);
+  const canDeleteRequest = canManageShutdowns(currentUser);
   const approvalStages = [
-    { title: "Planner review", activeStatuses: ["SUBMITTED"], doneStatuses: ["COORD_REVIEW", "SUPER_REVIEW", "MANAGER_REVIEW", "APPROVED", "REJECTED"], comment: request.planner_comment, completedBy: request.planner_decided_by, completedAt: request.planner_decided_at },
-    { title: "Shutdown Coordinator review", activeStatuses: ["COORD_REVIEW"], doneStatuses: ["SUPER_REVIEW", "MANAGER_REVIEW", "APPROVED", "REJECTED"], comment: request.coordinator_comment, completedBy: request.coordinator_decided_by, completedAt: request.coordinator_decided_at },
-    { title: "Superintendent review", activeStatuses: ["SUPER_REVIEW"], doneStatuses: ["MANAGER_REVIEW", "APPROVED", "REJECTED"], comment: request.superintendent_comment, completedBy: request.superintendent_decided_by, completedAt: request.superintendent_decided_at },
-    { title: "Manager review", activeStatuses: ["MANAGER_REVIEW"], doneStatuses: ["APPROVED", "REJECTED"], comment: request.manager_comment, completedBy: request.manager_decided_by, completedAt: request.manager_decided_at },
+    { title: "Planner review", stage: "SUBMITTED", activeStatuses: ["SUBMITTED"], doneStatuses: ["COORD_REVIEW", "SUPER_REVIEW", "MANAGER_REVIEW", "APPROVED", "REJECTED"], comment: request.planner_comment, completedBy: request.planner_decided_by, completedAt: request.planner_decided_at },
+    { title: "Shutdown Coordinator review", stage: "COORD_REVIEW", activeStatuses: ["COORD_REVIEW"], doneStatuses: ["SUPER_REVIEW", "MANAGER_REVIEW", "APPROVED", "REJECTED"], comment: request.coordinator_comment, completedBy: request.coordinator_decided_by, completedAt: request.coordinator_decided_at },
+    { title: "Superintendent review", stage: "SUPER_REVIEW", activeStatuses: ["SUPER_REVIEW"], doneStatuses: ["MANAGER_REVIEW", "APPROVED", "REJECTED"], comment: request.superintendent_comment, completedBy: request.superintendent_decided_by, completedAt: request.superintendent_decided_at },
+    { title: "Manager review", stage: "MANAGER_REVIEW", activeStatuses: ["MANAGER_REVIEW"], doneStatuses: ["APPROVED", "REJECTED"], comment: request.manager_comment, completedBy: request.manager_decided_by, completedAt: request.manager_decided_at },
   ] as const;
 
   return (
-    <div style={{ padding: 28, background: "#f4f6f8", minHeight: "100vh" }}>
+    <div style={{ minHeight: "100vh", background: "#f4f6f8", display: "grid", gridTemplateColumns: "176px minmax(0, 1fr)" }}>
+      <AppSidebar active="work-removal" user={currentUser} />
+      <main style={{ minWidth: 0, padding: 28 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-          <img src="/logo.png" alt="Company logo" style={{ height: 44, objectFit: "contain" }} />
-          <div>
-            <div style={{ fontSize: 12, color: "#444", fontWeight: 700 }}>Work Removal Request</div>
-            <h1 style={{ margin: 0, fontSize: 22, fontWeight: 900, color: "#111" }}>{request.wo_number} - {request.wo_title || "Untitled"}</h1>
-          </div>
-        </div>
-
-        <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-          <Link href="/work-removal/new" style={primaryButton}>+ New removal</Link>
-          <Link href="/work-removal/dashboard" style={secondaryButton}>Removal Dashboard</Link>
+        <div>
+          <div style={{ fontSize: 12, color: "#444", fontWeight: 700 }}>Work Removal Request</div>
+          <h1 style={{ margin: 0, fontSize: 22, fontWeight: 900, color: "#111" }}>{request.wo_number} - {request.wo_title || "Untitled"}</h1>
         </div>
       </div>
 
       <div style={{ marginTop: 18, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 14 }}>
         <Card title="Status">
           <span style={{ display: "inline-block", padding: "6px 12px", borderRadius: 999, background: `${stCol}20`, color: stCol, fontWeight: 900, fontSize: 13 }}>{st}</span>
+          {st === "REJECTED" ? (
+            <form action={`/api/work-removal/${id}/reopen`} method="post" style={{ marginTop: 12 }}>
+              <button type="submit" style={reopenButtonStyle}>Reopen for review</button>
+            </form>
+          ) : null}
         </Card>
         <Card title="Removed Hours">
           <div style={{ fontSize: 28, fontWeight: 900, color: "#111" }}>{removedHours.toFixed(1)}</div>
           <div style={{ fontSize: 12, color: "#444", fontWeight: 700 }}>hrs</div>
         </Card>
       </div>
+
+      {sp.detailsUpdated ? <Notice tone="success">Request details updated.</Notice> : null}
+      {sp.reopened ? <Notice tone="success">Rejected request reopened for review.</Notice> : null}
+      {sp.deleteError ? <Notice tone="error">{sp.deleteError}</Notice> : null}
+      {sp.detailsError ? <Notice tone="error">{sp.detailsError}</Notice> : null}
 
       <div style={{ marginTop: 16, display: "grid", gridTemplateColumns: "1.2fr 0.8fr", gap: 14, alignItems: "start" }}>
         <div style={panelStyle}>
@@ -158,6 +174,15 @@ export default async function WorkRemovalDetailPage({ params }: { params: Promis
         </div>
       </div>
 
+      <RequestDetailsEditor
+        action={`/api/work-removal/${id}/update`}
+        request={request}
+        reasonLabel="Reason for removal"
+        consequenceLabel="Consequence if not removed"
+      />
+
+      {canDeleteRequest ? <RequestDeletePanel action={`/api/work-removal/${id}/delete`} /> : null}
+
       <ResourcePlannerEditor
         id={id}
         initialResources={resources.map((resource) => ({
@@ -175,16 +200,96 @@ export default async function WorkRemovalDetailPage({ params }: { params: Promis
 
       <div style={{ marginTop: 14, ...panelStyle }}>
         <SectionTitle>Approvals</SectionTitle>
-        <div style={{ marginBottom: 12, padding: "12px 14px", borderRadius: 12, background: "#f8fafc", border: "1px solid #e2e8f0", color: "#1f2937", fontSize: 13, fontWeight: 600 }}>
-          Approval actions are completed from email notifications, not inside the app. This page shows the current review stage and any saved comments.
-        </div>
+        {sp.approvalSaved ? (
+          <Notice tone="success">
+            Approval action saved. {sp.emailWarning ? `Email warning: ${sp.emailWarning}` : ""}
+          </Notice>
+        ) : null}
+        {sp.approvalError ? <Notice tone="error">{sp.approvalError}</Notice> : null}
         <div style={{ display: "grid", gap: 12 }}>
           {approvalStages.map((stage) => (
-            <ReadOnlyApprovalBlock key={stage.title} title={stage.title} currentStatus={st} activeStatuses={stage.activeStatuses} doneStatuses={stage.doneStatuses} comment={stage.comment} completedBy={stage.completedBy} completedAt={stage.completedAt} />
+            <ApprovalBlock
+              key={stage.title}
+              title={stage.title}
+              stage={stage.stage}
+              currentStatus={st}
+              activeStatuses={stage.activeStatuses}
+              doneStatuses={stage.doneStatuses}
+              comment={stage.comment}
+              completedBy={stage.completedBy}
+              completedAt={stage.completedAt}
+              savePath={`/api/work-removal/${id}/decision`}
+              workgroup={request.workgroup}
+            />
           ))}
         </div>
       </div>
+      </main>
     </div>
+  );
+}
+
+function RequestDetailsEditor({
+  action,
+  consequenceLabel,
+  reasonLabel,
+  request,
+}: {
+  action: string;
+  consequenceLabel: string;
+  reasonLabel: string;
+  request: ReqRow;
+}) {
+  return (
+    <form action={action} method="post" style={{ marginTop: 14, ...panelStyle }}>
+      <SectionTitle>Edit request details</SectionTitle>
+      <div style={editGridStyle}>
+        <Field name="requestor_name" label="Requested by" value={request.requestor_name || ""} />
+        <Field name="requestor_email" label="Requestor email" type="email" value={request.requestor_email || ""} />
+        <Field name="wo_number" label="WO Number" required value={request.wo_number} />
+        <Field name="wo_title" label="WO Title" value={request.wo_title || ""} />
+        <Field name="area" label="Area" value={request.area || ""} />
+        <Field name="priority" label="Priority" value={request.priority || ""} />
+        <Field name="workgroup" label="Workgroup" value={request.workgroup || ""} />
+      </div>
+      <div style={{ marginTop: 12, display: "grid", gap: 12 }}>
+        <TextArea name="reason" label={reasonLabel} value={request.reason || ""} />
+        <TextArea name="consequence" label={consequenceLabel} value={request.consequence || ""} />
+      </div>
+      <button type="submit" style={{ ...approveButtonStyle, marginTop: 14 }}>
+        Save request details
+      </button>
+    </form>
+  );
+}
+
+function Field({
+  label,
+  name,
+  required,
+  type = "text",
+  value,
+}: {
+  label: string;
+  name: string;
+  required?: boolean;
+  type?: string;
+  value: string;
+}) {
+  return (
+    <label>
+      <div style={editLabelStyle}>{label}</div>
+      <input name={name} required={required} type={type} defaultValue={value} style={editInputStyle} />
+    </label>
+  );
+}
+
+function TextArea({ label, name, value }: { label: string; name: string; value: string }) {
+  return (
+    <label>
+      <div style={editLabelStyle}>{label}</div>
+      <textarea name={name} defaultValue={value} rows={4} style={editTextareaStyle} />
+    </label>
   );
 }
 
@@ -205,28 +310,44 @@ function KeyVal({ label, value }: { label: string; value: string }) {
   );
 }
 
-function ReadOnlyApprovalBlock({
+function Notice({ children, tone }: { children: React.ReactNode; tone: "error" | "success" }) {
+  const isError = tone === "error";
+  return (
+    <div style={{ marginBottom: 12, padding: "12px 14px", borderRadius: 12, background: isError ? "#fef2f2" : "#f0fdf4", border: isError ? "1px solid #fecaca" : "1px solid #bbf7d0", color: isError ? "#991b1b" : "#166534", fontSize: 13, fontWeight: 800 }}>
+      {children}
+    </div>
+  );
+}
+
+function ApprovalBlock({
   title,
+  stage,
   currentStatus,
   activeStatuses,
   doneStatuses,
   comment,
   completedBy,
   completedAt,
+  savePath,
+  workgroup,
 }: {
   title: string;
+  stage: string;
   currentStatus: string;
   activeStatuses: readonly string[];
   doneStatuses: readonly string[];
   comment: string | null;
   completedBy: string | null;
   completedAt: string | null;
+  savePath: string;
+  workgroup: string | null;
 }) {
   const isActive = activeStatuses.includes(currentStatus);
   const isDone = doneStatuses.includes(currentStatus);
-  const label = isActive ? "Email sent" : isDone ? "Completed" : "Waiting";
+  const label = isActive ? "Awaiting review" : isDone ? "Completed" : "Waiting";
   const labelColor = isActive ? "#b45309" : isDone ? "#166534" : "#475569";
   const labelBg = isActive ? "#fef3c7" : isDone ? "#dcfce7" : "#e2e8f0";
+  const needsWorkgroup = stage === "COORD_REVIEW";
 
   return (
     <div style={{ padding: "14px 0", borderTop: "1px solid #f0f0f0" }}>
@@ -249,9 +370,73 @@ function ReadOnlyApprovalBlock({
           {label}
         </div>
       </div>
+      {isActive ? (
+        <form action={savePath} method="post" style={{ marginTop: 12, display: "grid", gap: 10 }}>
+          <input type="hidden" name="stage" value={stage} />
+          {needsWorkgroup ? (
+            <label>
+              <div style={{ fontSize: 12, color: "#111", fontWeight: 800, marginBottom: 6 }}>Workgroup</div>
+              <input name="workgroup" defaultValue={workgroup || ""} required style={approvalInputStyle} />
+            </label>
+          ) : null}
+          <label>
+            <div style={{ fontSize: 12, color: "#111", fontWeight: 800, marginBottom: 6 }}>Comment</div>
+            <textarea name="comment" rows={3} style={approvalTextareaStyle} />
+          </label>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button type="submit" name="decision" value="APPROVE" style={approveButtonStyle}>Approve</button>
+            <button type="submit" name="decision" value="REJECT" style={rejectButtonStyle}>Reject</button>
+          </div>
+        </form>
+      ) : null}
     </div>
   );
 }
+
+const approvalInputStyle = {
+  width: "100%",
+  padding: "10px 12px",
+  border: "1px solid #d1d5db",
+  borderRadius: 8,
+  color: "#111",
+  fontWeight: 700,
+} as const;
+
+const approvalTextareaStyle = {
+  ...approvalInputStyle,
+  minHeight: 82,
+  resize: "vertical",
+} as const;
+
+const approveButtonStyle = {
+  padding: "10px 14px",
+  borderRadius: 8,
+  border: "1px solid #15803d",
+  background: "#16a34a",
+  color: "#fff",
+  fontWeight: 900,
+  cursor: "pointer",
+} as const;
+
+const rejectButtonStyle = {
+  padding: "10px 14px",
+  borderRadius: 8,
+  border: "1px solid #b91c1c",
+  background: "#dc2626",
+  color: "#fff",
+  fontWeight: 900,
+  cursor: "pointer",
+} as const;
+
+const reopenButtonStyle = {
+  padding: "9px 12px",
+  borderRadius: 8,
+  border: "1px solid #ea580c",
+  background: "#f97316",
+  color: "#fff",
+  fontWeight: 900,
+  cursor: "pointer",
+} as const;
 
 const panelStyle = {
   background: "#fff",
@@ -260,22 +445,31 @@ const panelStyle = {
   padding: 18,
 };
 
-const primaryButton = {
-  fontWeight: 600,
-  color: "#fff",
-  textDecoration: "none",
-  padding: "10px 14px",
-  borderRadius: 10,
-  border: "1px solid #b45309",
-  background: "#d97706",
-};
+const editGridStyle = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+  gap: 12,
+} as const;
 
-const secondaryButton = {
-  fontWeight: 600,
+const editLabelStyle = {
   color: "#111",
-  textDecoration: "none",
-  padding: "10px 14px",
-  borderRadius: 10,
-  border: "1px solid rgba(0,0,0,0.12)",
-  background: "#fff",
-};
+  display: "block",
+  fontSize: 12,
+  fontWeight: 900,
+  marginBottom: 6,
+} as const;
+
+const editInputStyle = {
+  width: "100%",
+  border: "1px solid #d1d5db",
+  borderRadius: 8,
+  color: "#111",
+  fontWeight: 700,
+  padding: "10px 12px",
+} as const;
+
+const editTextareaStyle = {
+  ...editInputStyle,
+  minHeight: 90,
+  resize: "vertical",
+} as const;

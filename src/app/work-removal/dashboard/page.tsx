@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { createSupabaseDb } from "@/lib/supabase/db";
-import { ShutdownDataActions } from "@/components/ShutdownDataActions";
-import { shutdownAdminActionsEnabled } from "@/lib/shutdown/admin-actions";
+import { AppSidebar } from "@/components/AppSidebar";
+import { requireCurrentUser } from "@/lib/auth/current-user";
+import { listShutdowns, type Shutdown } from "@/lib/shutdown/setup";
 
 type Row = {
   id: string;
@@ -20,13 +21,19 @@ type ResourceRow = {
   hours: number;
 };
 
-async function loadDashboardData() {
+async function loadDashboardData(shutdownId: string | null) {
   const supabase = createSupabaseDb();
 
-  const { data, error } = await supabase
+  let requestQuery = supabase
     .from("work_removal_requests")
     .select("id, created_at, wo_number, wo_title, area, priority, workgroup, status, requestor_name")
     .order("created_at", { ascending: false });
+
+  if (shutdownId) {
+    requestQuery = requestQuery.eq("shutdown_id", shutdownId);
+  }
+
+  const { data, error } = await requestQuery;
 
   if (error) {
     return { ok: false as const, message: error.message || "Unknown Supabase error" };
@@ -50,12 +57,15 @@ async function loadDashboardData() {
 export default async function WorkRemovalDashboardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ filter?: string }>;
+  searchParams: Promise<{ filter?: string; shutdown?: string }>;
 }) {
+  const currentUser = await requireCurrentUser();
   const sp = await searchParams;
   const filter = (sp?.filter ?? "ALL").toUpperCase();
-  const loaded = await loadDashboardData();
-  const showShutdownAdminActions = shutdownAdminActionsEnabled();
+  const loadedShutdowns = await listShutdowns();
+  const selectedShutdown = getSelectedShutdown(loadedShutdowns.shutdowns, sp.shutdown);
+  const selectedShutdownId = selectedShutdown?.id ?? null;
+  const loaded = await loadDashboardData(selectedShutdownId);
 
   if (!loaded.ok) {
     return (
@@ -81,25 +91,34 @@ export default async function WorkRemovalDashboardPage({
   });
 
   return (
-    <div style={{ padding: 28, background: "#f4f6f8", minHeight: "100vh" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-          <img src="/logo.png" alt="Company logo" style={{ height: 48, objectFit: "contain" }} />
-          <h1 style={{ fontSize: 26, fontWeight: 600, color: "#111", margin: 0 }}>Work Removal Dashboard</h1>
-        </div>
+    <div style={{ minHeight: "100vh", background: "#f4f6f8", display: "grid", gridTemplateColumns: "176px minmax(0, 1fr)" }}>
+      <AppSidebar active="work-removal" user={currentUser} />
 
-        <div style={{ display: "flex", gap: 14, alignItems: "center", flexWrap: "wrap" }}>
-          {showShutdownAdminActions ? <ShutdownDataActions /> : null}
-          <Link href="/break-in/dashboard" style={buttonStyle(false)}>Break-in Dashboard</Link>
-          <Link href="/late-work/dashboard" style={buttonStyle(false)}>Late Work Dashboard</Link>
-          <Link href="/work-removal/new" style={buttonStyle(true)}>+ New Removal Request</Link>
-        </div>
+      <main style={{ minWidth: 0, padding: 28 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+        <h1 style={{ fontSize: 26, fontWeight: 600, color: "#111", margin: 0 }}>Work Removal Dashboard</h1>
       </div>
 
+      <form method="GET" action="/work-removal/dashboard" style={{ marginTop: 18, display: "flex", justifyContent: "flex-end", gap: 8, flexWrap: "wrap", alignItems: "end" }}>
+        <input type="hidden" name="filter" value={filter} />
+        <label style={{ display: "grid", gap: 6 }}>
+          <span style={{ color: "#334155", fontSize: 12, fontWeight: 900 }}>Shutdown</span>
+          <select name="shutdown" defaultValue={selectedShutdownId || ""} style={selectStyle}>
+            {loadedShutdowns.shutdowns.length === 0 ? <option value="">No shutdowns found</option> : null}
+            {loadedShutdowns.shutdowns.map((shutdown) => (
+              <option key={shutdown.id} value={shutdown.id}>
+                {shutdown.name}{shutdown.is_active ? " (Active)" : ""}
+              </option>
+            ))}
+          </select>
+        </label>
+        <button type="submit" style={applyButtonStyle}>Apply</button>
+      </form>
+
       <div style={{ marginTop: 20, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 16 }}>
-        <KpiLink href="/work-removal/dashboard" active={filter === "ALL"} label="Total Requests" value={loaded.rows.length} />
-        <KpiLink href="/work-removal/dashboard?filter=OUTSTANDING" active={filter === "OUTSTANDING"} label="Outstanding" value={loaded.rows.filter((row) => row.status !== "APPROVED" && row.status !== "REJECTED").length} />
-        <KpiLink href="/work-removal/dashboard?filter=APPROVED" active={filter === "APPROVED"} label="Approved WOs Removed" value={approvedRows.length} color="#d97706" />
+        <KpiLink href={dashboardHref("ALL", selectedShutdownId)} active={filter === "ALL"} label="Total Requests" value={loaded.rows.length} />
+        <KpiLink href={dashboardHref("OUTSTANDING", selectedShutdownId)} active={filter === "OUTSTANDING"} label="Outstanding" value={loaded.rows.filter((row) => row.status !== "APPROVED" && row.status !== "REJECTED").length} />
+        <KpiLink href={dashboardHref("APPROVED", selectedShutdownId)} active={filter === "APPROVED"} label="Approved WOs Removed" value={approvedRows.length} color="#d97706" />
         <KpiCard label="Approved Hours Removed" value={approvedHours.toFixed(1)} suffix="h" color="#b45309" />
       </div>
 
@@ -136,20 +155,26 @@ export default async function WorkRemovalDashboardPage({
           </tbody>
         </table>
       </div>
+      </main>
     </div>
   );
 }
 
-function buttonStyle(primary: boolean) {
-  return {
-    fontWeight: 600,
-    color: primary ? "#fff" : "#111",
-    textDecoration: "none",
-    padding: "10px 14px",
-    borderRadius: 10,
-    border: primary ? "1px solid #b45309" : "1px solid rgba(0,0,0,0.12)",
-    background: primary ? "#d97706" : "#fff",
-  };
+function getSelectedShutdown(shutdowns: Shutdown[], requestedId?: string) {
+  if (requestedId) {
+    const requested = shutdowns.find((shutdown) => shutdown.id === requestedId);
+    if (requested) return requested;
+  }
+
+  return shutdowns.find((shutdown) => shutdown.is_active) || shutdowns[0] || null;
+}
+
+function dashboardHref(filter: string, shutdownId: string | null) {
+  const params = new URLSearchParams();
+  if (filter !== "ALL") params.set("filter", filter);
+  if (shutdownId) params.set("shutdown", shutdownId);
+  const query = params.toString();
+  return query ? `/work-removal/dashboard?${query}` : "/work-removal/dashboard";
 }
 
 function KpiLink({ href, active, label, value, color }: { href: string; active: boolean; label: string; value: number; color?: string }) {
@@ -202,3 +227,25 @@ const openButtonStyle = {
   fontWeight: 700,
   textDecoration: "none",
 };
+
+const selectStyle = {
+  minWidth: 260,
+  height: 40,
+  border: "1px solid #d1d5db",
+  borderRadius: 8,
+  background: "#fff",
+  color: "#111827",
+  padding: "0 10px",
+  fontWeight: 800,
+} as const;
+
+const applyButtonStyle = {
+  height: 40,
+  border: "1px solid #ea580c",
+  borderRadius: 8,
+  background: "#f97316",
+  color: "#fff",
+  padding: "0 14px",
+  fontWeight: 900,
+  cursor: "pointer",
+} as const;

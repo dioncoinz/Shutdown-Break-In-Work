@@ -25,7 +25,7 @@ export async function POST(req: Request) {
 
   if (!result.ok) {
     if (result.emailWarning) {
-      console.warn("Break-in email approval failed with warning", {
+      console.warn("Emergent email approval failed with warning", {
         requestId: parsed.data.requestId,
         stage: parsed.data.stage,
         decision: parsed.data.decision,
@@ -36,7 +36,7 @@ export async function POST(req: Request) {
   }
 
   if (result.emailWarning) {
-    console.warn("Break-in email approval completed with warning", {
+    console.warn("Emergent email approval completed with warning", {
       requestId: parsed.data.requestId,
       stage: parsed.data.stage,
       decision: parsed.data.decision,

@@ -9,7 +9,7 @@ export function ShutdownDataActions() {
 
   async function resetShutdownData() {
     const confirmation = window.prompt(
-      `This permanently clears all break-in and work removal data. Type ${confirmationText} to continue.`
+      `This permanently clears all emergent and work removal data. Type ${confirmationText} to continue.`
     );
 
     if (confirmation !== confirmationText) return;

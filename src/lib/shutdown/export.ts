@@ -192,12 +192,12 @@ export async function buildShutdownExcelHtml() {
     "<!doctype html>",
     '<html><head><meta charset="utf-8" /></head><body>',
     tableHtml(
-      "Break-in Requests",
+      "Emergent Requests",
       (breakInRequests.data ?? []) as BreakInRequestExportRow[],
       breakInColumns
     ),
     tableHtml(
-      "Break-in Resources",
+      "Emergent Resources",
       (breakInResources.data ?? []) as ResourceExportRow[],
       resourceColumns
     ),

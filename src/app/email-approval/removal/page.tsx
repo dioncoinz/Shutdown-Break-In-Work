@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { verifyApprovalToken } from "@/lib/email/approval-links";
 import { getWorkRemovalRequestById } from "@/lib/work-removal/server";
 import EmailApprovalForm from "../EmailApprovalForm";
@@ -24,9 +25,14 @@ export default async function RemovalEmailApprovalPage({
   return (
     <div style={{ minHeight: "100vh", background: "#f4f6f8", padding: 28 }}>
       <div style={{ maxWidth: 760, margin: "0 auto", background: "#fff", borderRadius: 18, boxShadow: "0 2px 8px rgba(0,0,0,0.05)", padding: 28 }}>
-        <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: 0.6, textTransform: "uppercase", color: "#6b7280" }}>
-          Work removal workflow
-        </div>
+        <Image
+          src="/Breakinz_png.png"
+          alt="Breakinz"
+          width={526}
+          height={215}
+          priority
+          style={{ display: "block", width: 180, height: "auto" }}
+        />
         <h1 style={{ margin: "8px 0 0", fontSize: 28, fontWeight: 800, color: "#111" }}>
           {parsed.data.decision === "APPROVE" ? "Approve removal" : "Reject removal"}
         </h1>

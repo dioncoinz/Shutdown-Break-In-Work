@@ -4,6 +4,7 @@ import { notifyRemovalStageApprovers } from "@/lib/email/removal-notifications";
 import { getSessionTokenParts, SESSION_COOKIE } from "@/lib/auth/session";
 import type { WorkRemovalRequestRecord } from "@/lib/work-removal/workflow";
 import { createSupabaseDb } from "@/lib/supabase/db";
+import { getDefaultShutdownId } from "@/lib/shutdown/setup";
 
 type ResourceLine = { resource_type: string; hours: number };
 
@@ -16,6 +17,7 @@ export async function POST(req: Request) {
       consequence: string;
       area?: string;
       priority?: string;
+      shutdown_id?: string;
       requestor_name?: string;
       requestor_email?: string;
       resources?: ResourceLine[];
@@ -49,11 +51,13 @@ export async function POST(req: Request) {
     }
 
     const supabase = createSupabaseDb();
+    const shutdownId = body.shutdown_id?.trim() || (await getDefaultShutdownId());
 
     const { data: header, error: headerErr } = await supabase
       .from("work_removal_requests")
       .insert({
         wo_number: body.wo_number,
+        shutdown_id: shutdownId,
         wo_title: body.wo_title,
         reason: body.reason,
         consequence: body.consequence,
@@ -64,7 +68,7 @@ export async function POST(req: Request) {
         status: "SUBMITTED",
       })
       .select(
-        "id, wo_number, wo_title, reason, consequence, area, priority, workgroup, status, requestor_name, requestor_email"
+        "id, shutdown_id, wo_number, wo_title, reason, consequence, area, priority, workgroup, status, requestor_name, requestor_email"
       )
       .single();
 

@@ -1,10 +1,14 @@
 import { NextResponse } from "next/server";
 import { createSupabaseDb } from "@/lib/supabase/db";
+import { requireApiUser } from "@/lib/auth/current-user";
 
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const auth = await requireApiUser();
+  if (auth.response) return auth.response;
+
   const { id } = await params;
   const { progress } = (await req.json()) as { progress?: number };
 
