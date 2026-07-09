@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { authenticateAppUser } from "@/lib/auth/users";
 import { SESSION_COOKIE, getSessionSecret } from "@/lib/auth/session";
+import { getSessionCookieOptions } from "@/lib/auth/cookie-options";
 import { createSessionToken } from "@/lib/auth/session-token";
 
 export async function POST(req: Request) {
@@ -33,13 +34,7 @@ export async function POST(req: Request) {
     ? NextResponse.redirect(new URL("/break-in/dashboard", req.url), { status: 303 })
     : NextResponse.json({ ok: true, next: "/break-in/dashboard", user });
 
-  response.cookies.set(SESSION_COOKIE, token, {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-    maxAge: 12 * 60 * 60,
-    path: "/",
-  });
+  response.cookies.set(SESSION_COOKIE, token, getSessionCookieOptions(req, 12 * 60 * 60));
 
   return response;
 }
