@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { requireCurrentUser } from "@/lib/auth/current-user";
 import { listEmailActivityForShutdown } from "@/lib/email/tracking";
-import { listRequestActivityForShutdown, mergeDashboardActivity } from "@/lib/request-activity";
+import { listRequestActivityForShutdown, mergeDashboardActivity, type RequestActivityEvent } from "@/lib/request-activity";
 import { listShutdowns, type Shutdown } from "@/lib/shutdown/setup";
 import { createSupabaseDb } from "@/lib/supabase/db";
 import { formatPerthActivityDate } from "@/lib/time/format";
@@ -45,15 +45,17 @@ export default async function DashboardPage({
   const loadedShutdowns = await listShutdowns();
   const sp = await searchParams;
   const activeShutdown = getSelectedShutdown(loadedShutdowns.shutdowns, sp.shutdown);
-  const [emailStats, emailActivityEvents, requestActivityEvents, approvalHistory] = await Promise.all([
+  const [emailStats, emailActivityEvents, requestActivityEvents, historicalActivityEvents, approvalHistory] = await Promise.all([
     getWorkflowEmailSavingsForShutdown(activeShutdown?.id),
     listEmailActivityForShutdown(activeShutdown?.id),
     listRequestActivityForShutdown(activeShutdown?.id),
+    listHistoricalActivityForShutdown(activeShutdown?.id),
     listApprovalHistoryForShutdown(activeShutdown?.id),
   ]);
   const activityEvents = mergeDashboardActivity({
     emails: emailActivityEvents,
-    requestActivity: requestActivityEvents,
+    requestActivity: [...requestActivityEvents, ...historicalActivityEvents],
+    limit: 16,
   });
   const displayName = currentUser.full_name || currentUser.email;
   const canManageShutdownSetup = currentUser.role === "admin" || currentUser.role === "coordinator";
@@ -179,7 +181,7 @@ export default async function DashboardPage({
                   Activity log
                   </h2>
                   <p style={{ margin: "5px 0 0", color: "#6b7280", fontSize: 12, fontWeight: 600 }}>
-                  Latest request and email activity recorded for this shutdown.
+                  Latest request, approval, and email activity for this shutdown.
                   </p>
                 </div>
                 <div style={{ color: "#6b7280", fontSize: 12, fontWeight: 800 }}>
@@ -214,7 +216,7 @@ export default async function DashboardPage({
                     {activityEvents.length === 0 ? (
                       <tr>
                         <Td colSpan={4}>
-                          Activity will appear here once requests are edited, reopened, or emails are sent.
+                          Activity will appear here once requests are created or move through review.
                         </Td>
                       </tr>
                     ) : null}
@@ -336,6 +338,38 @@ async function listApprovalHistoryForShutdown(shutdownId: string | null | undefi
     .slice(0, 8);
 }
 
+async function listHistoricalActivityForShutdown(
+  shutdownId: string | null | undefined,
+): Promise<RequestActivityEvent[]> {
+  if (!shutdownId) {
+    return [];
+  }
+
+  const selectWithManager =
+    "id, created_at, wo_number, requestor_name, status, planner_decided_by, planner_decided_at, coordinator_decided_by, coordinator_decided_at, superintendent_decided_by, superintendent_decided_at, manager_decided_by, manager_decided_at";
+  const selectWithoutManager =
+    "id, created_at, wo_number, requestor_name, status, planner_decided_by, planner_decided_at, coordinator_decided_by, coordinator_decided_at, superintendent_decided_by, superintendent_decided_at";
+  const supabase = createSupabaseDb();
+  const [emergent, lateWork, workRemoval] = await Promise.all([
+    supabase.from("break_in_requests").select(selectWithManager).eq("shutdown_id", shutdownId),
+    supabase.from("late_work_requests").select(selectWithoutManager).eq("shutdown_id", shutdownId),
+    supabase.from("work_removal_requests").select(selectWithManager).eq("shutdown_id", shutdownId),
+  ]);
+
+  const firstError = [emergent.error, lateWork.error, workRemoval.error].find(Boolean);
+  if (firstError) {
+    throw new Error(firstError.message);
+  }
+
+  return [
+    ...historicalActivityFromRows((emergent.data ?? []) as unknown as ApprovalSourceRow[], "emergent"),
+    ...historicalActivityFromRows((lateWork.data ?? []) as unknown as ApprovalSourceRow[], "late_work"),
+    ...historicalActivityFromRows((workRemoval.data ?? []) as unknown as ApprovalSourceRow[], "work_removal"),
+  ]
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    .slice(0, 32);
+}
+
 async function getWorkflowEmailSavingsForShutdown(
   shutdownId: string | null | undefined,
 ): Promise<WorkflowEmailSavings> {
@@ -421,6 +455,112 @@ function approvalEventsFromRows(rows: ApprovalSourceRow[], type: string) {
   }
 
   return events;
+}
+
+function historicalActivityFromRows(
+  rows: ApprovalSourceRow[],
+  requestType: RequestActivityEvent["request_type"],
+) {
+  const events: RequestActivityEvent[] = [];
+
+  for (const row of rows) {
+    events.push({
+      id: `${requestType}-${row.id}-submitted`,
+      created_at: row.created_at,
+      request_type: requestType,
+      action: "Submitted",
+      actor: row.requestor_name || null,
+      details: `WO ${row.wo_number} submitted`,
+    });
+
+    addHistoricalDecisionActivity(
+      events,
+      requestType,
+      row,
+      "planner",
+      "Planner review",
+      row.planner_decided_by,
+      row.planner_decided_at,
+    );
+    addHistoricalDecisionActivity(
+      events,
+      requestType,
+      row,
+      "coordinator",
+      "Coordinator review",
+      row.coordinator_decided_by,
+      row.coordinator_decided_at,
+    );
+    addHistoricalDecisionActivity(
+      events,
+      requestType,
+      row,
+      "superintendent",
+      "Superintendent review",
+      row.superintendent_decided_by,
+      row.superintendent_decided_at,
+    );
+    addHistoricalDecisionActivity(
+      events,
+      requestType,
+      row,
+      "manager",
+      "Manager review",
+      row.manager_decided_by,
+      row.manager_decided_at,
+    );
+
+    const latestDecision = getLatestDecision(row);
+    if ((row.status === "APPROVED" || row.status === "COMPLETED") && latestDecision) {
+      events.push({
+        id: `${requestType}-${row.id}-approved`,
+        created_at: latestDecision.at,
+        request_type: requestType,
+        action: "Approved",
+        actor: latestDecision.by,
+        details: `WO ${row.wo_number} fully approved`,
+      });
+    }
+  }
+
+  return events;
+}
+
+function addHistoricalDecisionActivity(
+  events: RequestActivityEvent[],
+  requestType: RequestActivityEvent["request_type"],
+  row: ApprovalSourceRow,
+  stage: string,
+  action: string,
+  by?: string | null,
+  at?: string | null,
+) {
+  if (!by || !at) {
+    return;
+  }
+
+  events.push({
+    id: `${requestType}-${row.id}-${stage}`,
+    created_at: at,
+    request_type: requestType,
+    action,
+    actor: by,
+    details: `WO ${row.wo_number} ${action.toLowerCase()} completed`,
+  });
+}
+
+function getLatestDecision(row: ApprovalSourceRow) {
+  const latestDecision = [
+    [row.planner_decided_by, row.planner_decided_at],
+    [row.coordinator_decided_by, row.coordinator_decided_at],
+    [row.superintendent_decided_by, row.superintendent_decided_at],
+    [row.manager_decided_by, row.manager_decided_at],
+  ]
+    .filter((entry): entry is [string, string] => Boolean(entry[0] && entry[1]))
+    .sort((a, b) => new Date(b[1]).getTime() - new Date(a[1]).getTime())[0];
+
+  if (!latestDecision) return null;
+  return { by: latestDecision[0], at: latestDecision[1] };
 }
 
 function addDecisionEvent(
