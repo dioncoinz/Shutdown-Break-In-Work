@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { requireCurrentUser } from "@/lib/auth/current-user";
-import { getEmailSavingsForShutdown, listEmailActivityForShutdown } from "@/lib/email/tracking";
+import { listEmailActivityForShutdown } from "@/lib/email/tracking";
 import { listRequestActivityForShutdown, mergeDashboardActivity } from "@/lib/request-activity";
 import { listShutdowns, type Shutdown } from "@/lib/shutdown/setup";
 import { createSupabaseDb } from "@/lib/supabase/db";
@@ -29,6 +29,12 @@ type ApprovalHistoryEvent = {
   woNumber: string;
 };
 
+type WorkflowEmailSavings = {
+  emailsSaved: number;
+  workflowSteps: number;
+  requests: number;
+};
+
 export default async function DashboardPage({
   searchParams,
 }: {
@@ -39,7 +45,7 @@ export default async function DashboardPage({
   const sp = await searchParams;
   const activeShutdown = getSelectedShutdown(loadedShutdowns.shutdowns, sp.shutdown);
   const [emailStats, emailActivityEvents, requestActivityEvents, approvalHistory] = await Promise.all([
-    getEmailSavingsForShutdown(activeShutdown?.id),
+    getWorkflowEmailSavingsForShutdown(activeShutdown?.id),
     listEmailActivityForShutdown(activeShutdown?.id),
     listRequestActivityForShutdown(activeShutdown?.id),
     listApprovalHistoryForShutdown(activeShutdown?.id),
@@ -141,19 +147,19 @@ export default async function DashboardPage({
                 Emails saved from manual sending
                 </h2>
                 <p style={{ margin: "10px 0 0", color: "#4b5563", fontSize: 13, lineHeight: 1.55, maxWidth: 560 }}>
-                Every successful app-generated email is counted here for the active shutdown, showing how much manual email work the app has taken off the team.
+                Every submitted request and completed approval milestone is counted live for the active shutdown, showing how much manual email work the app has taken off the team.
                 </p>
               </div>
 
               <div style={counterCardStyle}>
                 <div style={{ color: "#4b5563", fontSize: 12, fontWeight: 900, textTransform: "uppercase" }}>
-                  Emails sent
+                  Emails saved
                 </div>
                 <div style={{ marginTop: 8, color: "#f05a1a", fontSize: 54, lineHeight: 1, fontWeight: 900 }}>
-                  {emailStats.emailsSent}
+                  {emailStats.emailsSaved}
                 </div>
                 <div style={{ marginTop: 8, color: "#111827", fontSize: 12, fontWeight: 800 }}>
-                  Across {emailStats.events} send event{emailStats.events === 1 ? "" : "s"}
+                  Across {emailStats.requests} request{emailStats.requests === 1 ? "" : "s"} and {emailStats.workflowSteps} workflow step{emailStats.workflowSteps === 1 ? "" : "s"}
                 </div>
               </div>
             </section>
@@ -327,6 +333,53 @@ async function listApprovalHistoryForShutdown(shutdownId: string | null | undefi
   ]
     .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())
     .slice(0, 8);
+}
+
+async function getWorkflowEmailSavingsForShutdown(
+  shutdownId: string | null | undefined,
+): Promise<WorkflowEmailSavings> {
+  if (!shutdownId) {
+    return { emailsSaved: 0, workflowSteps: 0, requests: 0 };
+  }
+
+  const selectWithManager =
+    "id, created_at, wo_number, requestor_name, status, planner_decided_by, planner_decided_at, coordinator_decided_by, coordinator_decided_at, superintendent_decided_by, superintendent_decided_at, manager_decided_by, manager_decided_at";
+  const selectWithoutManager =
+    "id, created_at, wo_number, requestor_name, status, planner_decided_by, planner_decided_at, coordinator_decided_by, coordinator_decided_at, superintendent_decided_by, superintendent_decided_at";
+  const supabase = createSupabaseDb();
+  const [emergent, lateWork, workRemoval] = await Promise.all([
+    supabase.from("break_in_requests").select(selectWithManager).eq("shutdown_id", shutdownId),
+    supabase.from("late_work_requests").select(selectWithoutManager).eq("shutdown_id", shutdownId),
+    supabase.from("work_removal_requests").select(selectWithManager).eq("shutdown_id", shutdownId),
+  ]);
+
+  const firstError = [emergent.error, lateWork.error, workRemoval.error].find(Boolean);
+  if (firstError) {
+    throw new Error(firstError.message);
+  }
+
+  const rows = [
+    ...((emergent.data ?? []) as unknown as ApprovalSourceRow[]),
+    ...((lateWork.data ?? []) as unknown as ApprovalSourceRow[]),
+    ...((workRemoval.data ?? []) as unknown as ApprovalSourceRow[]),
+  ];
+  const workflowSteps = rows.reduce((sum, row) => sum + countWorkflowEmailSteps(row), 0);
+
+  return {
+    emailsSaved: workflowSteps,
+    workflowSteps,
+    requests: rows.length,
+  };
+}
+
+function countWorkflowEmailSteps(row: ApprovalSourceRow) {
+  return [
+    row.created_at,
+    row.planner_decided_at,
+    row.coordinator_decided_at,
+    row.superintendent_decided_at,
+    row.manager_decided_at,
+  ].filter(Boolean).length;
 }
 
 function approvalEventsFromRows(rows: ApprovalSourceRow[], type: string) {
