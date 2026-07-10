@@ -1,10 +1,12 @@
 import { createSupabaseDb } from "@/lib/supabase/db";
 import type { EmailActivityEvent, EmailRequestType } from "@/lib/email/tracking";
 
+export type ActivityRequestType = EmailRequestType | "admin";
+
 export type RequestActivityEvent = {
   id: string;
   created_at: string;
-  request_type: EmailRequestType;
+  request_type: ActivityRequestType;
   action: string;
   actor: string | null;
   details: string | null;
@@ -13,7 +15,7 @@ export type RequestActivityEvent = {
 export type DashboardActivityEvent = {
   id: string;
   created_at: string;
-  request_type: EmailRequestType;
+  request_type: ActivityRequestType;
   action: string;
   actor: string | null;
   details: string;

@@ -1,7 +1,11 @@
 import Link from "next/link";
 import { requireCurrentUser } from "@/lib/auth/current-user";
 import { listEmailActivityForShutdown } from "@/lib/email/tracking";
-import { listRequestActivityForShutdown, mergeDashboardActivity, type RequestActivityEvent } from "@/lib/request-activity";
+import {
+  listRequestActivityForShutdown,
+  mergeDashboardActivity,
+  type RequestActivityEvent,
+} from "@/lib/request-activity";
 import { listShutdowns, type Shutdown } from "@/lib/shutdown/setup";
 import { createSupabaseDb } from "@/lib/supabase/db";
 import { formatPerthActivityDate } from "@/lib/time/format";
@@ -45,16 +49,24 @@ export default async function DashboardPage({
   const loadedShutdowns = await listShutdowns();
   const sp = await searchParams;
   const activeShutdown = getSelectedShutdown(loadedShutdowns.shutdowns, sp.shutdown);
-  const [emailStats, emailActivityEvents, requestActivityEvents, historicalActivityEvents, approvalHistory] = await Promise.all([
+  const [
+    emailStats,
+    emailActivityEvents,
+    requestActivityEvents,
+    historicalActivityEvents,
+    adminActivityEvents,
+    approvalHistory,
+  ] = await Promise.all([
     getWorkflowEmailSavingsForShutdown(activeShutdown?.id),
     listEmailActivityForShutdown(activeShutdown?.id),
     listRequestActivityForShutdown(activeShutdown?.id),
     listHistoricalActivityForShutdown(activeShutdown?.id),
+    listAdminActivity(),
     listApprovalHistoryForShutdown(activeShutdown?.id),
   ]);
   const activityEvents = mergeDashboardActivity({
     emails: emailActivityEvents,
-    requestActivity: [...requestActivityEvents, ...historicalActivityEvents],
+    requestActivity: [...requestActivityEvents, ...historicalActivityEvents, ...adminActivityEvents],
     limit: 16,
   });
   const displayName = currentUser.full_name || currentUser.email;
@@ -370,6 +382,77 @@ async function listHistoricalActivityForShutdown(
     .slice(0, 32);
 }
 
+async function listAdminActivity(): Promise<RequestActivityEvent[]> {
+  const supabase = createSupabaseDb();
+  const [users, shutdowns] = await Promise.all([
+    supabase
+      .from("app_users")
+      .select("id, created_at, email, full_name, role, invited_at, invite_accepted_at")
+      .order("created_at", { ascending: false })
+      .limit(24),
+    supabase
+      .from("shutdowns")
+      .select("id, created_at, name, is_active")
+      .order("created_at", { ascending: false })
+      .limit(24),
+  ]);
+
+  const firstError = [users.error, shutdowns.error].find(Boolean);
+  if (firstError) {
+    throw new Error(firstError.message);
+  }
+
+  return [
+    ...((shutdowns.data ?? []).map((shutdown): RequestActivityEvent => ({
+      id: `shutdown-${shutdown.id}-created`,
+      created_at: String(shutdown.created_at),
+      request_type: "admin",
+      action: "Shutdown created",
+      actor: null,
+      details: `${shutdown.name}${shutdown.is_active ? " (active)" : ""}`,
+    }))),
+    ...((users.data ?? []).flatMap((user): RequestActivityEvent[] => {
+      const displayName = user.full_name ? `${user.full_name} (${user.email})` : String(user.email);
+      const events: RequestActivityEvent[] = [
+        {
+          id: `user-${user.id}-created`,
+          created_at: String(user.created_at),
+          request_type: "admin",
+          action: "User created",
+          actor: null,
+          details: `${displayName} - ${user.role}`,
+        },
+      ];
+
+      if (user.invited_at) {
+        events.push({
+          id: `user-${user.id}-invited`,
+          created_at: String(user.invited_at),
+          request_type: "admin",
+          action: "User invited",
+          actor: null,
+          details: displayName,
+        });
+      }
+
+      if (user.invite_accepted_at) {
+        events.push({
+          id: `user-${user.id}-invite-accepted`,
+          created_at: String(user.invite_accepted_at),
+          request_type: "admin",
+          action: "Invite accepted",
+          actor: displayName,
+          details: `${user.role} access activated`,
+        });
+      }
+
+      return events;
+    })),
+  ]
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    .slice(0, 32);
+}
+
 async function getWorkflowEmailSavingsForShutdown(
   shutdownId: string | null | undefined,
 ): Promise<WorkflowEmailSavings> {
@@ -586,6 +669,7 @@ function addDecisionEvent(
 }
 
 function formatRequestType(type: string) {
+  if (type === "admin") return "Admin";
   if (type === "emergent") return "Emergent";
   if (type === "late_work") return "Late Work";
   if (type === "work_removal") return "Work Removal";
