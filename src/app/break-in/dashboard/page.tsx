@@ -4,6 +4,7 @@ import { listEmailActivityForShutdown } from "@/lib/email/tracking";
 import { listRequestActivityForShutdown, mergeDashboardActivity } from "@/lib/request-activity";
 import { listShutdowns, type Shutdown } from "@/lib/shutdown/setup";
 import { createSupabaseDb } from "@/lib/supabase/db";
+import { formatPerthActivityDate } from "@/lib/time/format";
 
 type ApprovalSourceRow = {
   id: string;
@@ -452,12 +453,7 @@ function formatRequestType(type: string) {
 }
 
 function formatActivityDate(value: string) {
-  return new Intl.DateTimeFormat("en-AU", {
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    month: "short",
-  }).format(new Date(value));
+  return formatPerthActivityDate(value);
 }
 
 function SideLink({ href, label, active }: { href: string; label: string; active?: boolean }) {

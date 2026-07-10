@@ -5,6 +5,7 @@ import { RequestDeletePanel } from "@/components/RequestDeletePanel";
 import ResourcePlannerEditor from "../../../components/ResourcePlannerEditor";
 import { canApproveStage, getApprovalStageRole, type ApprovalStage } from "@/lib/auth/approval-permissions";
 import { canManageShutdowns, requireCurrentUser } from "@/lib/auth/current-user";
+import { formatPerthDateTime } from "@/lib/time/format";
 
 type ReqRow = {
   id: string;
@@ -165,7 +166,7 @@ export default async function LateWorkDetailPage({
           )}
 
           <div style={{ marginTop: 12, fontSize: 12, color: "#111" }}>
-            Created: {request.created_at ? new Date(request.created_at).toLocaleString() : "-"}
+            Created: {request.created_at ? formatPerthDateTime(request.created_at) : "-"}
           </div>
         </div>
       </div>
@@ -361,7 +362,7 @@ function ApprovalBlock({
           {isDone && (completedBy || completedAt) && (
             <div style={{ fontSize: 12, color: "#475569", marginTop: 8, fontWeight: 600 }}>
               {completedBy ? `By ${completedBy}` : "Completed"}
-              {completedAt ? ` on ${new Date(completedAt).toLocaleString()}` : ""}
+              {completedAt ? ` on ${formatPerthDateTime(completedAt)}` : ""}
             </div>
           )}
         </div>
