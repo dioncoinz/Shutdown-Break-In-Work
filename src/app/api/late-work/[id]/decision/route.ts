@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireApiUser } from "@/lib/auth/current-user";
+import { canApproveStage, getApprovalPermissionError } from "@/lib/auth/approval-permissions";
 import { applyLateWorkDecision, type Decision, type ReviewStage } from "@/lib/late-work/decision";
 
 const STAGES = ["SUBMITTED", "COORD_REVIEW", "SUPER_REVIEW"] as const;
@@ -17,6 +18,10 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
 
   if (!STAGES.includes(stage) || (decision !== "APPROVE" && decision !== "REJECT")) {
     return redirectToRequest(req, id, "Invalid approval action.");
+  }
+
+  if (!canApproveStage(auth.user, stage)) {
+    return redirectToRequest(req, id, getApprovalPermissionError(stage));
   }
 
   const actor = auth.user?.full_name || auth.user?.email || "A reviewer";

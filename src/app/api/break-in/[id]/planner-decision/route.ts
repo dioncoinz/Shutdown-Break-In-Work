@@ -1,12 +1,15 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { getSessionTokenParts, SESSION_COOKIE } from "@/lib/auth/session";
+import { requireApiUser } from "@/lib/auth/current-user";
+import { canApproveStage, getApprovalPermissionError } from "@/lib/auth/approval-permissions";
 import { applyBreakInDecision } from "@/lib/break-in/decision";
 
 export async function POST(
   req: Request,
   ctx: { params: Promise<{ id: string }> }
 ) {
+  const auth = await requireApiUser();
+  if (auth.response) return auth.response;
+
   const { id } = await ctx.params;
 
   const body = (await req.json().catch(() => ({}))) as {
@@ -18,8 +21,11 @@ export async function POST(
     return NextResponse.json({ error: "Bad decision" }, { status: 400 });
   }
 
-  const cookieStore = await cookies();
-  const actor = getSessionTokenParts(cookieStore.get(SESSION_COOKIE)?.value)?.email || "A planner";
+  if (!canApproveStage(auth.user, "SUBMITTED")) {
+    return NextResponse.json({ error: getApprovalPermissionError("SUBMITTED") }, { status: 403 });
+  }
+
+  const actor = auth.user?.full_name || auth.user?.email || "A planner";
   const result = await applyBreakInDecision({
     requestId: id,
     stage: "SUBMITTED",

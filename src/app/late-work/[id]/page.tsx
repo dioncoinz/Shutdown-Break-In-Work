@@ -3,6 +3,7 @@ import { createSupabaseDb } from "@/lib/supabase/db";
 import { AppSidebar } from "@/components/AppSidebar";
 import { RequestDeletePanel } from "@/components/RequestDeletePanel";
 import ResourcePlannerEditor from "../../../components/ResourcePlannerEditor";
+import { canApproveStage, getApprovalStageRole, type ApprovalStage } from "@/lib/auth/approval-permissions";
 import { canManageShutdowns, requireCurrentUser } from "@/lib/auth/current-user";
 
 type ReqRow = {
@@ -215,6 +216,7 @@ export default async function LateWorkDetailPage({
               completedAt={stage.completedAt}
               savePath={`/api/late-work/${id}/decision`}
               workgroup={request.workgroup}
+              canAction={canApproveStage(currentUser, stage.stage)}
             />
           ))}
         </div>
@@ -325,9 +327,10 @@ function ApprovalBlock({
   completedAt,
   savePath,
   workgroup,
+  canAction,
 }: {
   title: string;
-  stage: string;
+  stage: ApprovalStage;
   currentStatus: string;
   activeStatuses: readonly string[];
   doneStatuses: readonly string[];
@@ -336,6 +339,7 @@ function ApprovalBlock({
   completedAt: string | null;
   savePath: string;
   workgroup: string | null;
+  canAction: boolean;
 }) {
   const isActive = activeStatuses.includes(currentStatus);
   const isDone = doneStatuses.includes(currentStatus);
@@ -365,7 +369,7 @@ function ApprovalBlock({
           {label}
         </div>
       </div>
-      {isActive ? (
+      {isActive && canAction ? (
         <form action={savePath} method="post" style={{ marginTop: 12, display: "grid", gap: 10 }}>
           <input type="hidden" name="stage" value={stage} />
           {needsWorkgroup ? (
@@ -383,10 +387,25 @@ function ApprovalBlock({
             <button type="submit" name="decision" value="REJECT" style={rejectButtonStyle}>Reject</button>
           </div>
         </form>
+      ) : isActive ? (
+        <div style={restrictedApprovalStyle}>
+          Awaiting {getApprovalStageRole(stage)} approval.
+        </div>
       ) : null}
     </div>
   );
 }
+
+const restrictedApprovalStyle = {
+  marginTop: 12,
+  padding: "10px 12px",
+  borderRadius: 8,
+  border: "1px solid #e2e8f0",
+  background: "#f8fafc",
+  color: "#475569",
+  fontSize: 12,
+  fontWeight: 800,
+} as const;
 
 const approvalInputStyle = {
   width: "100%",
