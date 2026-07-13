@@ -27,8 +27,22 @@ export function isAdminUser(user: { role: string } | null | undefined) {
   return user?.role === "admin" || user?.role === "coordinator";
 }
 
+export function isPrimaryAdminUser(user: { email: string; role: string } | null | undefined) {
+  const primaryAdminEmail = process.env.ADMIN_EMAIL?.trim().toLowerCase();
+
+  return Boolean(
+    primaryAdminEmail &&
+      user?.role === "admin" &&
+      user.email.trim().toLowerCase() === primaryAdminEmail
+  );
+}
+
 export function canManageShutdowns(user: { role: string } | null | undefined) {
   return user?.role === "admin" || user?.role === "coordinator";
+}
+
+export function canEditRequests(user: { role: string } | null | undefined) {
+  return Boolean(user && user.role !== "user");
 }
 
 export async function requireAdminUser() {
@@ -52,6 +66,23 @@ export async function requireApiUser() {
   }
 
   return { user, response: null };
+}
+
+export async function requireApiRequestEditorUser() {
+  const auth = await requireApiUser();
+
+  if (auth.response) {
+    return auth;
+  }
+
+  if (!canEditRequests(auth.user)) {
+    return {
+      user: auth.user,
+      response: NextResponse.json({ error: "This account has view-only access." }, { status: 403 }),
+    };
+  }
+
+  return auth;
 }
 
 export async function requireApiAdminUser() {

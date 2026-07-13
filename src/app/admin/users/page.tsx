@@ -1,5 +1,5 @@
 import { AppSidebar } from "@/components/AppSidebar";
-import { requireAdminUser } from "@/lib/auth/current-user";
+import { isPrimaryAdminUser, requireAdminUser } from "@/lib/auth/current-user";
 import { listAppUsers } from "@/lib/auth/users";
 
 const inputStyle = {
@@ -20,6 +20,7 @@ export default async function AdminUsersPage({
   const currentUser = await requireAdminUser();
   const users = await listAppUsers();
   const sp = await searchParams;
+  const canManageAdmins = isPrimaryAdminUser(currentUser);
 
   return (
     <div
@@ -100,8 +101,9 @@ export default async function AdminUsersPage({
 
               <label>
                 <FieldLabel>Role</FieldLabel>
-                <select name="role" defaultValue="admin" style={inputStyle}>
-                  <option value="admin">Admin</option>
+                <select name="role" defaultValue="user" style={inputStyle}>
+                  {canManageAdmins ? <option value="admin">Admin</option> : null}
+                  <option value="user">User</option>
                   <option value="planner">Planner</option>
                   <option value="coordinator">Coordinator</option>
                   <option value="superintendent">Superintendent</option>
@@ -152,6 +154,7 @@ export default async function AdminUsersPage({
                   const formId = `user-${user.id}`;
                   const isCurrentUser = user.id === currentUser.id;
                   const isPendingInvite = Boolean(user.invited_at && !user.invite_accepted_at);
+                  const isProtectedAdmin = user.role === "admin" && !canManageAdmins;
 
                   return (
                     <tr key={user.id} style={{ borderTop: "1px solid #e5e7eb" }}>
@@ -163,6 +166,7 @@ export default async function AdminUsersPage({
                           form={formId}
                           name="full_name"
                           defaultValue={user.full_name || ""}
+                          disabled={isProtectedAdmin}
                           style={tableInputStyle}
                           placeholder="Name"
                         />
@@ -174,12 +178,14 @@ export default async function AdminUsersPage({
                           type="email"
                           required
                           defaultValue={user.email}
+                          disabled={isProtectedAdmin}
                           style={tableInputStyle}
                         />
                       </Td>
                       <Td>
-                        <select form={formId} name="role" defaultValue={user.role} style={tableInputStyle}>
-                          <option value="admin">Admin</option>
+                        <select form={formId} name="role" defaultValue={user.role} disabled={isProtectedAdmin} style={tableInputStyle}>
+                          {user.role === "admin" || canManageAdmins ? <option value="admin">Admin</option> : null}
+                          <option value="user">User</option>
                           <option value="planner">Planner</option>
                           <option value="coordinator">Coordinator</option>
                           <option value="superintendent">Superintendent</option>
@@ -192,7 +198,7 @@ export default async function AdminUsersPage({
                             {isPendingInvite ? "Pending Invite" : user.is_active ? "Active" : "Disabled"}
                           </span>
                           <label style={{ display: "inline-flex", alignItems: "center", gap: 8, fontWeight: 800 }}>
-                          <input form={formId} name="is_active" type="checkbox" defaultChecked={user.is_active} />
+                          <input form={formId} name="is_active" type="checkbox" defaultChecked={user.is_active} disabled={isProtectedAdmin} />
                           Active
                           </label>
                         </div>
@@ -203,20 +209,21 @@ export default async function AdminUsersPage({
                           name="password"
                           type="password"
                           minLength={8}
+                          disabled={isProtectedAdmin}
                           style={tableInputStyle}
                           placeholder="Leave unchanged"
                         />
                       </Td>
                       <Td>
                         <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}>
-                          <button type="submit" form={formId} style={saveButtonStyle}>
+                          <button type="submit" form={formId} disabled={isProtectedAdmin} style={saveButtonStyle}>
                             Save
                           </button>
                           {isPendingInvite ? (
                             <form action="/api/admin/users" method="post">
                               <input type="hidden" name="_action" value="resend-invite" />
                               <input type="hidden" name="id" value={user.id} />
-                              <button type="submit" style={resendButtonStyle}>
+                              <button type="submit" disabled={isProtectedAdmin} style={resendButtonStyle}>
                                 Resend
                               </button>
                             </form>
@@ -226,9 +233,9 @@ export default async function AdminUsersPage({
                             <input type="hidden" name="id" value={user.id} />
                             <button
                               type="submit"
-                              disabled={isCurrentUser}
-                              title={isCurrentUser ? "You cannot delete your own signed-in user." : "Delete user"}
-                              style={deleteButtonStyle(isCurrentUser)}
+                              disabled={isCurrentUser || isProtectedAdmin}
+                              title={isCurrentUser ? "You cannot delete your own signed-in user." : isProtectedAdmin ? "Only the primary administrator can manage admin accounts." : "Delete user"}
+                              style={deleteButtonStyle(isCurrentUser || isProtectedAdmin)}
                             >
                               Delete
                             </button>

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { requireShutdownManagerUser } from "@/lib/auth/current-user";
+import { canManageShutdowns, requireCurrentUser } from "@/lib/auth/current-user";
 import {
   getEffectiveApprovalStages,
   getShutdownById,
@@ -24,13 +24,14 @@ export default async function EditShutdownPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ error?: string; updated?: string }>;
 }) {
-  const currentUser = await requireShutdownManagerUser();
+  const currentUser = await requireCurrentUser();
   const { id } = await params;
   const sp = await searchParams;
   const { shutdown } = await getShutdownById(id);
   const displayName = currentUser.full_name || currentUser.email;
   const canManageShutdownSetup = currentUser.role === "admin" || currentUser.role === "coordinator";
   const canManageUsers = currentUser.role === "admin" || currentUser.role === "coordinator";
+  const canEditShutdown = canManageShutdowns(currentUser);
 
   if (!shutdown) {
     notFound();
@@ -82,7 +83,7 @@ export default async function EditShutdownPage({
             <span style={{ color: "#f05a1a", fontWeight: 900 }}>Admin</span>
             <span style={{ color: "#94a3b8", fontWeight: 900 }}>/</span>
             <h1 style={{ margin: 0, color: "#111827", fontSize: 20, fontWeight: 900 }}>
-              Edit Shutdown
+              {canEditShutdown ? "Edit Shutdown" : "View Shutdown"}
             </h1>
           </div>
           <Link href="/admin/shutdowns" style={secondaryLinkStyle}>
@@ -118,7 +119,7 @@ export default async function EditShutdownPage({
               <div style={{ marginTop: 16, display: "grid", gap: 12 }}>
                 <label>
                   <FieldLabel>Name</FieldLabel>
-                  <input name="name" required defaultValue={shutdown.name} style={inputStyle} />
+                  <input name="name" required defaultValue={shutdown.name} disabled={!canEditShutdown} style={inputStyle} />
                 </label>
 
                 <label>
@@ -127,6 +128,7 @@ export default async function EditShutdownPage({
                     name="start_date"
                     type="date"
                     defaultValue={shutdown.start_date || ""}
+                    disabled={!canEditShutdown}
                     style={inputStyle}
                   />
                 </label>
@@ -137,6 +139,7 @@ export default async function EditShutdownPage({
                     name="end_date"
                     type="date"
                     defaultValue={shutdown.end_date || ""}
+                    disabled={!canEditShutdown}
                     style={inputStyle}
                   />
                 </label>
@@ -146,12 +149,13 @@ export default async function EditShutdownPage({
                   <textarea
                     name="description"
                     defaultValue={shutdown.description || ""}
+                    disabled={!canEditShutdown}
                     style={{ ...inputStyle, minHeight: 110, resize: "vertical" }}
                   />
                 </label>
 
                 <label style={{ display: "flex", alignItems: "center", gap: 9, color: "#111", fontWeight: 800 }}>
-                  <input name="is_active" type="checkbox" defaultChecked={shutdown.is_active} />
+                  <input name="is_active" type="checkbox" defaultChecked={shutdown.is_active} disabled={!canEditShutdown} />
                   Active
                 </label>
               </div>
@@ -176,6 +180,7 @@ export default async function EditShutdownPage({
                     superintendent: shutdown.break_in_requires_superintendent,
                     manager: shutdown.break_in_requires_manager,
                   }}
+                  disabled={!canEditShutdown}
                 />
                 <ApprovalRow
                   label="Late work"
@@ -186,6 +191,7 @@ export default async function EditShutdownPage({
                     superintendent: shutdown.late_work_requires_superintendent,
                     manager: shutdown.late_work_requires_manager,
                   }}
+                  disabled={!canEditShutdown}
                 />
                 <ApprovalRow
                   label="Work removal"
@@ -196,6 +202,7 @@ export default async function EditShutdownPage({
                     superintendent: shutdown.work_removal_requires_superintendent,
                     manager: shutdown.work_removal_requires_manager,
                   }}
+                  disabled={!canEditShutdown}
                 />
               </div>
 
@@ -208,9 +215,11 @@ export default async function EditShutdownPage({
                 <div>Removal: {getEffectiveApprovalStages(shutdown, "work_removal").join(", ")}</div>
               </div>
 
-              <button type="submit" style={primaryButtonStyle}>
-                Save shutdown
-              </button>
+              {canEditShutdown ? (
+                <button type="submit" style={primaryButtonStyle}>
+                  Save shutdown
+                </button>
+              ) : null}
             </section>
           </form>
         </div>
@@ -383,9 +392,11 @@ function ApprovalRow({
   label,
   prefix,
   defaults,
+  disabled,
 }: {
   label: string;
   prefix: string;
+  disabled?: boolean;
   defaults: {
     planner: boolean;
     coordinator: boolean;
@@ -396,10 +407,10 @@ function ApprovalRow({
   return (
     <div style={approvalGridRowStyle}>
       <span>{label}</span>
-      <ApprovalCheckbox name={`${prefix}_requires_planner`} defaultChecked={defaults.planner} />
-      <ApprovalCheckbox name={`${prefix}_requires_coordinator`} defaultChecked={defaults.coordinator} />
-      <ApprovalCheckbox name={`${prefix}_requires_superintendent`} defaultChecked={defaults.superintendent} />
-      <ApprovalCheckbox name={`${prefix}_requires_manager`} defaultChecked={defaults.manager} />
+      <ApprovalCheckbox name={`${prefix}_requires_planner`} defaultChecked={defaults.planner} disabled={disabled} />
+      <ApprovalCheckbox name={`${prefix}_requires_coordinator`} defaultChecked={defaults.coordinator} disabled={disabled} />
+      <ApprovalCheckbox name={`${prefix}_requires_superintendent`} defaultChecked={defaults.superintendent} disabled={disabled} />
+      <ApprovalCheckbox name={`${prefix}_requires_manager`} defaultChecked={defaults.manager} disabled={disabled} />
     </div>
   );
 }
@@ -407,13 +418,15 @@ function ApprovalRow({
 function ApprovalCheckbox({
   name,
   defaultChecked,
+  disabled,
 }: {
   name: string;
   defaultChecked: boolean;
+  disabled?: boolean;
 }) {
   return (
     <label style={{ display: "grid", placeItems: "center" }}>
-      <input name={name} type="checkbox" defaultChecked={defaultChecked} />
+      <input name={name} type="checkbox" defaultChecked={defaultChecked} disabled={disabled} />
     </label>
   );
 }

@@ -21,9 +21,20 @@ type AppUserWithPassword = AppUser & {
 
 const USER_SELECT = "id, email, full_name, role, is_active, created_at, invited_at, invite_expires_at, invite_accepted_at";
 const USER_WITH_PASSWORD_SELECT = `${USER_SELECT}, password_hash`;
+const USER_ROLES = new Set(["admin", "user", "planner", "coordinator", "superintendent", "manager"]);
 
 function normalizeEmail(email: string) {
   return email.trim().toLowerCase();
+}
+
+function normalizeRole(role?: string) {
+  const normalizedRole = role?.trim().toLowerCase() || "planner";
+
+  if (!USER_ROLES.has(normalizedRole)) {
+    throw new Error("Select a valid user role.");
+  }
+
+  return normalizedRole;
 }
 
 function hashInviteToken(token: string) {
@@ -102,6 +113,21 @@ export async function listAppUsers() {
   return (data ?? []) as AppUser[];
 }
 
+export async function getAppUserById(id: string) {
+  const userId = id.trim();
+  if (!userId) return null;
+
+  const supabase = createSupabaseDb();
+  const { data, error } = await supabase
+    .from("app_users")
+    .select(USER_SELECT)
+    .eq("id", userId)
+    .maybeSingle();
+
+  if (error || !data) return null;
+  return data as AppUser;
+}
+
 export async function createAppUser(input: {
   email: string;
   full_name?: string;
@@ -109,7 +135,7 @@ export async function createAppUser(input: {
   password: string;
 }) {
   const email = normalizeEmail(input.email);
-  const role = input.role?.trim() || "admin";
+  const role = normalizeRole(input.role);
 
   if (!email.includes("@")) {
     throw new Error("Enter a valid email address.");
@@ -149,7 +175,7 @@ export async function inviteAppUser(input: {
   role?: string;
 }) {
   const email = normalizeEmail(input.email);
-  const role = input.role?.trim() || "admin";
+  const role = normalizeRole(input.role);
 
   if (!email.includes("@")) {
     throw new Error("Enter a valid email address.");
@@ -304,7 +330,7 @@ export async function updateAppUser(input: {
 }) {
   const id = input.id.trim();
   const email = normalizeEmail(input.email);
-  const role = input.role?.trim() || "admin";
+  const role = normalizeRole(input.role);
 
   if (!id) {
     throw new Error("User is required.");

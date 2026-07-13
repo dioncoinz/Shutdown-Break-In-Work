@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { createSupabaseDb } from "@/lib/supabase/db";
-import { requireApiUser } from "@/lib/auth/current-user";
+import { requireApiRequestEditorUser } from "@/lib/auth/current-user";
 
 export async function POST(req: Request) {
-  const auth = await requireApiUser();
+  const auth = await requireApiRequestEditorUser();
   if (auth.response) return auth.response;
 
   const body = (await req.json()) as { id?: string };

@@ -135,7 +135,9 @@ export default async function AdminShutdownsPage({
                             </button>
                           </div>
                         ) : (
-                          <span style={{ color: "#64748b", fontSize: 13, fontWeight: 800 }}>View only</span>
+                          <Link href={`/admin/shutdowns/${shutdown.id}`} style={smallLinkStyle}>
+                            View
+                          </Link>
                         )}
                       </Td>
                     </tr>

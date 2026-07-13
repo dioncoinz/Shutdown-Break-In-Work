@@ -1,6 +1,12 @@
 import { NextResponse } from "next/server";
-import { requireApiAdminUser } from "@/lib/auth/current-user";
-import { deleteAppUser, inviteAppUser, resendUserInvite, updateAppUser } from "@/lib/auth/users";
+import { isPrimaryAdminUser, requireApiAdminUser } from "@/lib/auth/current-user";
+import {
+  deleteAppUser,
+  getAppUserById,
+  inviteAppUser,
+  resendUserInvite,
+  updateAppUser,
+} from "@/lib/auth/users";
 
 export async function POST(req: Request) {
   const auth = await requireApiAdminUser();
@@ -14,10 +20,20 @@ export async function POST(req: Request) {
     ? Object.fromEntries((await req.formData()).entries())
     : ((await req.json().catch(() => ({}))) as Record<string, unknown>);
   const action = String(input._action || "create");
+  const canManageAdmins = isPrimaryAdminUser(auth.user);
 
   try {
     if (action === "delete") {
       const id = String(input.id || "");
+      const targetUser = await getAppUserById(id);
+
+      if (!targetUser) {
+        throw new Error("User not found.");
+      }
+
+      if (targetUser.role === "admin" && !canManageAdmins) {
+        throw new Error("Only the primary administrator can manage admin accounts.");
+      }
 
       if (id === auth.user?.id) {
         throw new Error("You cannot delete your own signed-in user.");
@@ -33,7 +49,18 @@ export async function POST(req: Request) {
     }
 
     if (action === "resend-invite") {
-      const user = await resendUserInvite(String(input.id || ""));
+      const id = String(input.id || "");
+      const targetUser = await getAppUserById(id);
+
+      if (!targetUser) {
+        throw new Error("User not found.");
+      }
+
+      if (targetUser.role === "admin" && !canManageAdmins) {
+        throw new Error("Only the primary administrator can manage admin accounts.");
+      }
+
+      const user = await resendUserInvite(id);
 
       if (isFormPost) {
         return NextResponse.redirect(new URL("/admin/users?invited=1", req.url), { status: 303 });
@@ -42,21 +69,41 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true, user });
     }
 
-    const user =
-      action === "update"
-        ? await updateAppUser({
-            id: String(input.id || ""),
+    const role = String(input.role || "planner").trim().toLowerCase();
+
+    if (role === "admin" && !canManageAdmins) {
+      throw new Error("Only the primary administrator can create or promote an admin.");
+    }
+
+    let user;
+
+    if (action === "update") {
+      const id = String(input.id || "");
+      const targetUser = await getAppUserById(id);
+
+      if (!targetUser) {
+        throw new Error("User not found.");
+      }
+
+      if (targetUser.role === "admin" && !canManageAdmins) {
+        throw new Error("Only the primary administrator can manage admin accounts.");
+      }
+
+      user = await updateAppUser({
+            id,
             email: String(input.email || ""),
             full_name: String(input.full_name || ""),
-            role: String(input.role || "admin"),
+            role,
             password: String(input.password || ""),
             is_active: input.is_active === "on" || input.is_active === true,
-          })
-        : await inviteAppUser({
+          });
+    } else {
+      user = await inviteAppUser({
             email: String(input.email || ""),
             full_name: String(input.full_name || ""),
-            role: String(input.role || "admin"),
+            role,
           });
+    }
 
     if (isFormPost) {
       const flag = action === "update" ? "updated=1" : "invited=1";
