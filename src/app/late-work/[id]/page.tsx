@@ -4,7 +4,7 @@ import { AppSidebar } from "@/components/AppSidebar";
 import { RequestDeletePanel } from "@/components/RequestDeletePanel";
 import ResourcePlannerEditor from "../../../components/ResourcePlannerEditor";
 import { canApproveStage, getApprovalStageRole, type ApprovalStage } from "@/lib/auth/approval-permissions";
-import { canManageShutdowns, requireCurrentUser } from "@/lib/auth/current-user";
+import { canEditRequests, canManageShutdowns, requireCurrentUser } from "@/lib/auth/current-user";
 import { formatPerthDateTime } from "@/lib/time/format";
 
 type ReqRow = {
@@ -93,6 +93,7 @@ export default async function LateWorkDetailPage({
   const st = request.status ?? "UNKNOWN";
   const stCol = statusColor(st);
   const canDeleteRequest = canManageShutdowns(currentUser);
+  const canEditRequest = canEditRequests(currentUser);
   const approvalStages = [
     { title: "Planner review", stage: "SUBMITTED", activeStatuses: ["SUBMITTED"], doneStatuses: ["COORD_REVIEW", "SUPER_REVIEW", "APPROVED", "REJECTED"], comment: request.planner_comment, completedBy: request.planner_decided_by, completedAt: request.planner_decided_at },
     { title: "Shutdown Coordinator review", stage: "COORD_REVIEW", activeStatuses: ["COORD_REVIEW"], doneStatuses: ["SUPER_REVIEW", "APPROVED", "REJECTED"], comment: request.coordinator_comment, completedBy: request.coordinator_decided_by, completedAt: request.coordinator_decided_at },
@@ -113,7 +114,7 @@ export default async function LateWorkDetailPage({
       <div style={{ marginTop: 18, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 14 }}>
         <Card title="Status">
           <span style={{ display: "inline-block", padding: "6px 12px", borderRadius: 999, background: `${stCol}20`, color: stCol, fontWeight: 900, fontSize: 13 }}>{st}</span>
-          {st === "REJECTED" ? (
+          {st === "REJECTED" && canEditRequest ? (
             <form action={`/api/late-work/${id}/reopen`} method="post" style={{ marginTop: 12 }}>
               <button type="submit" style={reopenButtonStyle}>Reopen for review</button>
             </form>
@@ -171,29 +172,33 @@ export default async function LateWorkDetailPage({
         </div>
       </div>
 
-      <RequestDetailsEditor
-        action={`/api/late-work/${id}/update`}
-        request={request}
-        reasonLabel="Reason for late work"
-        consequenceLabel="Consequence if not added"
-      />
+      {canEditRequest ? (
+        <RequestDetailsEditor
+          action={`/api/late-work/${id}/update`}
+          request={request}
+          reasonLabel="Reason for late work"
+          consequenceLabel="Consequence if not added"
+        />
+      ) : null}
 
       {canDeleteRequest ? <RequestDeletePanel action={`/api/late-work/${id}/delete`} /> : null}
 
-      <ResourcePlannerEditor
-        id={id}
-        initialResources={resources.map((resource) => ({
-          id: resource.id,
-          resource_type: resource.resource_type,
-          hours: String(round1(resource.hours)),
-        }))}
-        savePath={`/api/late-work/${id}/resources`}
-        title="Late work hours"
-        description="Update the late work resource lines after submission if the added scope changes."
-        successMessage="Late work hours updated."
-        errorMessage="Failed to update late work hours."
-        buttonLabel="Save late work hours"
-      />
+      {canEditRequest ? (
+        <ResourcePlannerEditor
+          id={id}
+          initialResources={resources.map((resource) => ({
+            id: resource.id,
+            resource_type: resource.resource_type,
+            hours: String(round1(resource.hours)),
+          }))}
+          savePath={`/api/late-work/${id}/resources`}
+          title="Late work hours"
+          description="Update the late work resource lines after submission if the added scope changes."
+          successMessage="Late work hours updated."
+          errorMessage="Failed to update late work hours."
+          buttonLabel="Save late work hours"
+        />
+      ) : null}
 
       <div style={{ marginTop: 14, ...panelStyle }}>
         <SectionTitle>Approvals</SectionTitle>

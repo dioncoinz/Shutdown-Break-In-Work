@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import { requireApiUser } from "@/lib/auth/current-user";
+import { requireApiRequestEditorUser } from "@/lib/auth/current-user";
 import { reopenRejectedRequest } from "@/lib/request-edit";
 
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
-  const auth = await requireApiUser();
+  const auth = await requireApiRequestEditorUser();
   if (auth.response) return auth.response;
 
   const { id } = await ctx.params;

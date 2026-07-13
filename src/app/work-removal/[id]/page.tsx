@@ -4,7 +4,7 @@ import { AppSidebar } from "@/components/AppSidebar";
 import { RequestDeletePanel } from "@/components/RequestDeletePanel";
 import ResourcePlannerEditor from "../../../components/ResourcePlannerEditor";
 import { canApproveStage, getApprovalStageRole, type ApprovalStage } from "@/lib/auth/approval-permissions";
-import { canManageShutdowns, requireCurrentUser } from "@/lib/auth/current-user";
+import { canEditRequests, canManageShutdowns, requireCurrentUser } from "@/lib/auth/current-user";
 import { formatPerthDateTime } from "@/lib/time/format";
 
 type ReqRow = {
@@ -97,6 +97,7 @@ export default async function WorkRemovalDetailPage({
   const st = request.status ?? "UNKNOWN";
   const stCol = statusColor(st);
   const canDeleteRequest = canManageShutdowns(currentUser);
+  const canEditRequest = canEditRequests(currentUser);
   const approvalStages = [
     { title: "Planner review", stage: "SUBMITTED", activeStatuses: ["SUBMITTED"], doneStatuses: ["COORD_REVIEW", "SUPER_REVIEW", "MANAGER_REVIEW", "APPROVED", "REJECTED"], comment: request.planner_comment, completedBy: request.planner_decided_by, completedAt: request.planner_decided_at },
     { title: "Shutdown Coordinator review", stage: "COORD_REVIEW", activeStatuses: ["COORD_REVIEW"], doneStatuses: ["SUPER_REVIEW", "MANAGER_REVIEW", "APPROVED", "REJECTED"], comment: request.coordinator_comment, completedBy: request.coordinator_decided_by, completedAt: request.coordinator_decided_at },
@@ -118,7 +119,7 @@ export default async function WorkRemovalDetailPage({
       <div style={{ marginTop: 18, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 14 }}>
         <Card title="Status">
           <span style={{ display: "inline-block", padding: "6px 12px", borderRadius: 999, background: `${stCol}20`, color: stCol, fontWeight: 900, fontSize: 13 }}>{st}</span>
-          {st === "REJECTED" ? (
+          {st === "REJECTED" && canEditRequest ? (
             <form action={`/api/work-removal/${id}/reopen`} method="post" style={{ marginTop: 12 }}>
               <button type="submit" style={reopenButtonStyle}>Reopen for review</button>
             </form>
@@ -176,29 +177,33 @@ export default async function WorkRemovalDetailPage({
         </div>
       </div>
 
-      <RequestDetailsEditor
-        action={`/api/work-removal/${id}/update`}
-        request={request}
-        reasonLabel="Reason for removal"
-        consequenceLabel="Consequence if not removed"
-      />
+      {canEditRequest ? (
+        <RequestDetailsEditor
+          action={`/api/work-removal/${id}/update`}
+          request={request}
+          reasonLabel="Reason for removal"
+          consequenceLabel="Consequence if not removed"
+        />
+      ) : null}
 
       {canDeleteRequest ? <RequestDeletePanel action={`/api/work-removal/${id}/delete`} /> : null}
 
-      <ResourcePlannerEditor
-        id={id}
-        initialResources={resources.map((resource) => ({
-          id: resource.id,
-          resource_type: resource.resource_type,
-          hours: String(round1(resource.hours)),
-        }))}
-        savePath={`/api/work-removal/${id}/resources`}
-        title="Removed hours"
-        description="Update the removal resource lines after submission if the removed scope changes."
-        successMessage="Removed hours updated."
-        errorMessage="Failed to update removed hours."
-        buttonLabel="Save removed hours"
-      />
+      {canEditRequest ? (
+        <ResourcePlannerEditor
+          id={id}
+          initialResources={resources.map((resource) => ({
+            id: resource.id,
+            resource_type: resource.resource_type,
+            hours: String(round1(resource.hours)),
+          }))}
+          savePath={`/api/work-removal/${id}/resources`}
+          title="Removed hours"
+          description="Update the removal resource lines after submission if the removed scope changes."
+          successMessage="Removed hours updated."
+          errorMessage="Failed to update removed hours."
+          buttonLabel="Save removed hours"
+        />
+      ) : null}
 
       <div style={{ marginTop: 14, ...panelStyle }}>
         <SectionTitle>Approvals</SectionTitle>

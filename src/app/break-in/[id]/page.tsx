@@ -5,7 +5,7 @@ import { RequestDeletePanel } from "@/components/RequestDeletePanel";
 import ProgressUpdater from "../../../components/ProgressUpdater";
 import ResourcePlannerEditor from "../../../components/ResourcePlannerEditor";
 import { canApproveStage, getApprovalStageRole, type ApprovalStage } from "@/lib/auth/approval-permissions";
-import { canManageShutdowns, requireCurrentUser } from "@/lib/auth/current-user";
+import { canEditRequests, canManageShutdowns, requireCurrentUser } from "@/lib/auth/current-user";
 import { formatPerthDateTime } from "@/lib/time/format";
 
 type ReqRow = {
@@ -146,6 +146,7 @@ export default async function BreakInDetailPage({
   const st = request.status ?? "UNKNOWN";
   const stCol = statusColor(st);
   const canDeleteRequest = canManageShutdowns(currentUser);
+  const canEditRequest = canEditRequests(currentUser);
 
   const approvalStages = [
     {
@@ -229,7 +230,7 @@ export default async function BreakInDetailPage({
           >
             {st}
           </span>
-          {st === "REJECTED" ? (
+          {st === "REJECTED" && canEditRequest ? (
             <form action={`/api/break-in/${id}/reopen`} method="post" style={{ marginTop: 12 }}>
               <button type="submit" style={reopenButtonStyle}>Reopen for review</button>
             </form>
@@ -365,29 +366,35 @@ export default async function BreakInDetailPage({
         </div>
       </div>
 
-      <RequestDetailsEditor
-        action={`/api/break-in/${id}/update`}
-        request={request}
-        reasonLabel="Reason"
-        consequenceLabel="Consequence"
-      />
+      {canEditRequest ? (
+        <RequestDetailsEditor
+          action={`/api/break-in/${id}/update`}
+          request={request}
+          reasonLabel="Reason"
+          consequenceLabel="Consequence"
+        />
+      ) : null}
 
       {canDeleteRequest ? <RequestDeletePanel action={`/api/break-in/${id}/delete`} /> : null}
 
-      <ProgressUpdater
-        id={id}
-        currentPercent={request.progress_percent ?? 0}
-        currentStatus={request.status ?? ""}
-      />
+      {canEditRequest ? (
+        <ProgressUpdater
+          id={id}
+          currentPercent={request.progress_percent ?? 0}
+          currentStatus={request.status ?? ""}
+        />
+      ) : null}
 
-      <ResourcePlannerEditor
-        id={id}
-        initialResources={resources.map((resource) => ({
-          id: resource.id,
-          resource_type: resource.resource_type,
-          hours: String(round1(resource.hours)),
-        }))}
-      />
+      {canEditRequest ? (
+        <ResourcePlannerEditor
+          id={id}
+          initialResources={resources.map((resource) => ({
+            id: resource.id,
+            resource_type: resource.resource_type,
+            hours: String(round1(resource.hours)),
+          }))}
+        />
+      ) : null}
 
       <div
         style={{
