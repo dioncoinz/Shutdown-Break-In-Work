@@ -5,6 +5,8 @@ import { listShutdowns, type Shutdown } from "@/lib/shutdown/setup";
 import { createSupabaseDb } from "@/lib/supabase/db";
 
 type ReportType = "emergent" | "late" | "removed";
+type ReportViewType = ReportType | "all";
+type StatusFilter = "approved" | "outstanding" | "rejected";
 
 type Row = {
   id: string;
@@ -83,11 +85,12 @@ async function loadReport(type: ReportType, shutdownId: string | null) {
 export default async function ReportsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ shutdown?: string; type?: string }>;
+  searchParams: Promise<{ shutdown?: string; type?: string; status?: string }>;
 }) {
   const currentUser = await requireCurrentUser();
   const sp = await searchParams;
   const type = normalizeType(sp.type);
+  const statusFilter = normalizeStatusFilter(sp.status);
   const loadedShutdowns = await listShutdowns();
   const selectedShutdown = getSelectedShutdown(loadedShutdowns.shutdowns, sp.shutdown);
   const selectedShutdownId = selectedShutdown?.id ?? null;
@@ -115,11 +118,26 @@ export default async function ReportsPage({
   const reportData = reports
     .filter((report): report is { ok: true; data: ReportData } => report.ok)
     .map((report) => report.data);
-  const activeReport = reportData.find((report) => report.type === type) || reportData[0];
   const summaries = reportData.map(buildSummary);
   const executive = buildExecutiveSummary(summaries);
-  const activeSummary = summaries.find((summary) => summary.type === activeReport.type) || summaries[0];
-  const detailRows = activeReport.rows.slice(0, 12);
+  const selectedReports = type === "all" ? reportData : reportData.filter((report) => report.type === type);
+  const selectedSummaries = type === "all" ? summaries : summaries.filter((summary) => summary.type === type);
+  const selectedTotal = buildExecutiveSummary(selectedSummaries);
+  const allDetailRows = selectedReports.flatMap((report) => {
+    const summary = summaries.find((item) => item.type === report.type);
+    return report.rows.map((row) => ({
+      hours: summary?.hoursById.get(row.id) ?? 0,
+      reportType: report.type,
+      row,
+    }));
+  });
+  const filteredDetailRows = statusFilter
+    ? allDetailRows.filter(({ row }) => matchesStatusFilter(row.status, statusFilter))
+    : allDetailRows;
+  const displayedHours = round1(filteredDetailRows.reduce((sum, item) => sum + item.hours, 0));
+  const detailRows = statusFilter ? filteredDetailRows : filteredDetailRows.slice(0, 12);
+  const showTypeColumn = type === "all";
+  const showProgressColumn = type === "emergent";
 
   return (
     <div style={{ minHeight: "100vh", background: "#f4f6f8", display: "grid", gridTemplateColumns: "176px minmax(0, 1fr)" }}>
@@ -142,6 +160,7 @@ export default async function ReportsPage({
 
           <form method="GET" action="/admin/reports" style={{ display: "flex", alignItems: "end", gap: 8, flexWrap: "wrap" }}>
             <input type="hidden" name="type" value={type} />
+            {statusFilter ? <input type="hidden" name="status" value={statusFilter} /> : null}
             <label style={{ display: "grid", gap: 6 }}>
               <span style={{ color: "#334155", fontSize: 12, fontWeight: 900 }}>Shutdown</span>
               <select name="shutdown" defaultValue={selectedShutdownId || ""} style={selectStyle}>
@@ -159,9 +178,9 @@ export default async function ReportsPage({
 
         <section style={kpiGridStyle}>
           <ExecutiveKpi label="Total requests" value={executive.total} />
-          <ExecutiveKpi label="Approved" value={executive.approved} color="#15803d" />
-          <ExecutiveKpi label="Outstanding" value={executive.outstanding} color="#b45309" />
-          <ExecutiveKpi label="Rejected" value={executive.rejected} color="#dc2626" />
+          <ExecutiveKpi label="Approved" value={executive.approved} color="#15803d" href={statusHref("approved", selectedShutdownId)} active={statusFilter === "approved"} />
+          <ExecutiveKpi label="Outstanding" value={executive.outstanding} color="#b45309" href={statusHref("outstanding", selectedShutdownId)} active={statusFilter === "outstanding"} />
+          <ExecutiveKpi label="Rejected" value={executive.rejected} color="#dc2626" href={statusHref("rejected", selectedShutdownId)} active={statusFilter === "rejected"} />
           <ExecutiveKpi label="Total hours impact" value={`${executive.totalHours.toFixed(1)}h`} color="#1d4ed8" />
           <ExecutiveKpi label="Approved hours" value={`${executive.approvedHours.toFixed(1)}h`} color="#0f766e" />
         </section>
@@ -179,23 +198,27 @@ export default async function ReportsPage({
           <div style={panelStyle}>
             <SectionHeader title="Approval Position" note="Current status split for meeting discussion." />
             <div style={{ display: "grid", gap: 12 }}>
-              <StatusRow label="Approved" value={executive.approved} total={executive.total} color="#16a34a" />
-              <StatusRow label="Outstanding" value={executive.outstanding} total={executive.total} color="#f59e0b" />
-              <StatusRow label="Rejected" value={executive.rejected} total={executive.total} color="#dc2626" />
+              <StatusRow label="Approved" value={executive.approved} total={executive.total} color="#16a34a" href={statusHref("approved", selectedShutdownId)} />
+              <StatusRow label="Outstanding" value={executive.outstanding} total={executive.total} color="#f59e0b" href={statusHref("outstanding", selectedShutdownId)} />
+              <StatusRow label="Rejected" value={executive.rejected} total={executive.total} color="#dc2626" href={statusHref("rejected", selectedShutdownId)} />
             </div>
           </div>
         </section>
 
-        <section style={{ ...panelStyle, marginTop: 18 }}>
+        <section id="detailed-report" style={{ ...panelStyle, marginTop: 18 }}>
           <div style={{ display: "flex", justifyContent: "space-between", gap: 14, flexWrap: "wrap", alignItems: "center" }}>
             <SectionHeader
               title="Detailed Report"
-              note={`${typeLabel(activeReport.type)} · ${activeSummary.total} requests · ${activeSummary.totalHours.toFixed(1)}h total impact`}
+              note={`${typeLabel(type)} · ${statusFilter ? `${statusLabel(statusFilter)} · ${filteredDetailRows.length} matching requests` : `${selectedTotal.total} requests`} · ${(statusFilter ? displayedHours : selectedTotal.totalHours).toFixed(1)}h total impact`}
             />
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <ReportTab active={type === "emergent"} href={reportHref("emergent", selectedShutdownId)} label="Emergent" />
-              <ReportTab active={type === "late"} href={reportHref("late", selectedShutdownId)} label="Late Work" />
-              <ReportTab active={type === "removed"} href={reportHref("removed", selectedShutdownId)} label="Removed" />
+              {statusFilter ? (
+                <ReportTab active={false} href={`${reportHref(type, selectedShutdownId)}#detailed-report`} label="Clear filter" />
+              ) : null}
+              <ReportTab active={type === "all"} href={`${reportHref("all", selectedShutdownId, statusFilter)}#detailed-report`} label="All" />
+              <ReportTab active={type === "emergent"} href={`${reportHref("emergent", selectedShutdownId, statusFilter)}#detailed-report`} label="Emergent" />
+              <ReportTab active={type === "late"} href={`${reportHref("late", selectedShutdownId, statusFilter)}#detailed-report`} label="Late Work" />
+              <ReportTab active={type === "removed"} href={`${reportHref("removed", selectedShutdownId, statusFilter)}#detailed-report`} label="Removed" />
             </div>
           </div>
 
@@ -204,29 +227,31 @@ export default async function ReportsPage({
               <thead style={{ background: "#f8fafc" }}>
                 <tr>
                   <Th>WO</Th>
+                  {showTypeColumn ? <Th>Type</Th> : null}
                   <Th>Title</Th>
                   <Th>Area</Th>
                   <Th>Workgroup</Th>
                   <Th>Status</Th>
                   <Th>Hours</Th>
-                  {activeReport.type === "emergent" ? <Th>Progress</Th> : null}
+                  {showProgressColumn ? <Th>Progress</Th> : null}
                   <Th>Requestor</Th>
                   <Th />
                 </tr>
               </thead>
               <tbody>
-                {detailRows.map((row) => (
-                  <tr key={row.id} style={{ borderTop: "1px solid #e5e7eb" }}>
+                {detailRows.map(({ hours, reportType, row }) => (
+                  <tr key={`${reportType}-${row.id}`} style={{ borderTop: "1px solid #e5e7eb" }}>
                     <Td>{row.wo_number}</Td>
+                    {showTypeColumn ? <Td>{typeLabel(reportType)}</Td> : null}
                     <Td>{row.wo_title || "Untitled"}</Td>
                     <Td>{row.area || "-"}</Td>
                     <Td>{row.workgroup || "-"}</Td>
                     <Td><StatusBadge status={row.status || ""} /></Td>
-                    <Td>{(activeSummary.hoursById.get(row.id) ?? 0).toFixed(1)}</Td>
-                    {activeReport.type === "emergent" ? <Td>{row.progress_percent ?? 0}%</Td> : null}
+                    <Td>{hours.toFixed(1)}</Td>
+                    {showProgressColumn ? <Td>{row.progress_percent ?? 0}%</Td> : null}
                     <Td>{row.requestor_name || "-"}</Td>
                     <Td>
-                      <Link href={openHref(activeReport.type, row.id)} style={smallLinkStyle}>
+                      <Link href={openHref(reportType, row.id)} style={smallLinkStyle}>
                         Open
                       </Link>
                     </Td>
@@ -235,7 +260,7 @@ export default async function ReportsPage({
 
                 {detailRows.length === 0 ? (
                   <tr>
-                    <Td colSpan={activeReport.type === "emergent" ? 9 : 8}>No report data found.</Td>
+                    <Td colSpan={8 + (showTypeColumn ? 1 : 0) + (showProgressColumn ? 1 : 0)}>No matching report data found.</Td>
                   </tr>
                 ) : null}
               </tbody>
@@ -284,9 +309,15 @@ function buildExecutiveSummary(summaries: ReturnType<typeof buildSummary>[]) {
   );
 }
 
-function normalizeType(value?: string): ReportType {
+function normalizeType(value?: string): ReportViewType {
+  if (value === "all") return value;
   if (value === "late" || value === "removed") return value;
   return "emergent";
+}
+
+function normalizeStatusFilter(value?: string): StatusFilter | null {
+  if (value === "approved" || value === "outstanding" || value === "rejected") return value;
+  return null;
 }
 
 function getSelectedShutdown(shutdowns: Shutdown[], requestedId?: string) {
@@ -298,10 +329,15 @@ function getSelectedShutdown(shutdowns: Shutdown[], requestedId?: string) {
   return shutdowns.find((shutdown) => shutdown.is_active) || shutdowns[0] || null;
 }
 
-function reportHref(type: ReportType, shutdownId: string | null) {
+function reportHref(type: ReportViewType, shutdownId: string | null, status?: StatusFilter | null) {
   const params = new URLSearchParams({ type });
   if (shutdownId) params.set("shutdown", shutdownId);
+  if (status) params.set("status", status);
   return `/admin/reports?${params.toString()}`;
+}
+
+function statusHref(status: StatusFilter, shutdownId: string | null) {
+  return `${reportHref("all", shutdownId, status)}#detailed-report`;
 }
 
 function openHref(type: ReportType, id: string) {
@@ -310,7 +346,8 @@ function openHref(type: ReportType, id: string) {
   return `/break-in/${id}`;
 }
 
-function typeLabel(type: ReportType) {
+function typeLabel(type: ReportViewType) {
+  if (type === "all") return "All request streams";
   if (type === "late") return "Late Work";
   if (type === "removed") return "Removed Work";
   return "Emergent";
@@ -318,6 +355,18 @@ function typeLabel(type: ReportType) {
 
 function isApproved(status: string | null) {
   return status === "APPROVED" || status === "COMPLETED";
+}
+
+function matchesStatusFilter(status: string | null, filter: StatusFilter) {
+  if (filter === "approved") return isApproved(status);
+  if (filter === "rejected") return status === "REJECTED";
+  return !isApproved(status) && status !== "REJECTED";
+}
+
+function statusLabel(status: StatusFilter) {
+  if (status === "approved") return "Approved";
+  if (status === "rejected") return "Rejected";
+  return "Outstanding";
 }
 
 function round1(value: number) {
@@ -330,13 +379,16 @@ function formatDateRange(start: string | null, end: string | null) {
   return start || end || "No dates set";
 }
 
-function ExecutiveKpi({ label, value, color }: { label: string; value: string | number; color?: string }) {
-  return (
-    <div style={kpiCardStyle}>
+function ExecutiveKpi({ label, value, color, href, active = false }: { label: string; value: string | number; color?: string; href?: string; active?: boolean }) {
+  const activeColor = color || "#111827";
+  const content = (
+    <div style={{ ...kpiCardStyle, borderColor: active ? activeColor : "#e5e7eb", boxShadow: active ? `0 0 0 2px ${activeColor}25` : kpiCardStyle.boxShadow }}>
       <div style={{ color: "#475569", fontSize: 12, fontWeight: 900, textTransform: "uppercase" }}>{label}</div>
       <div style={{ marginTop: 8, color: color || "#111827", fontSize: 32, lineHeight: 1, fontWeight: 900 }}>{value}</div>
     </div>
   );
+
+  return href ? <Link href={href} style={{ color: "inherit", textDecoration: "none" }}>{content}</Link> : content;
 }
 
 function SectionHeader({ note, title }: { note: string; title: string }) {
@@ -364,11 +416,11 @@ function MixRow({ summary, total }: { summary: ReturnType<typeof buildSummary>; 
   );
 }
 
-function StatusRow({ color, label, total, value }: { color: string; label: string; total: number; value: number }) {
+function StatusRow({ color, label, total, value, href }: { color: string; label: string; total: number; value: number; href: string }) {
   const percent = total > 0 ? Math.round((value / total) * 100) : 0;
 
   return (
-    <div>
+    <Link href={href} style={{ color: "inherit", textDecoration: "none" }}>
       <div style={{ display: "flex", justifyContent: "space-between", gap: 12, fontSize: 13, fontWeight: 900, color: "#111827" }}>
         <span>{label}</span>
         <span>{value} · {percent}%</span>
@@ -376,7 +428,7 @@ function StatusRow({ color, label, total, value }: { color: string; label: strin
       <div style={barTrackStyle}>
         <div style={{ ...barFillStyle, width: `${percent}%`, background: color }} />
       </div>
-    </div>
+    </Link>
   );
 }
 

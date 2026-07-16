@@ -216,9 +216,14 @@ export default async function EditShutdownPage({
               </div>
 
               {canEditShutdown ? (
-                <button type="submit" style={primaryButtonStyle}>
-                  Save shutdown
-                </button>
+                <div style={{ marginTop: 16, display: "flex", gap: 10, flexWrap: "wrap" }}>
+                  <button type="submit" style={{ ...primaryButtonStyle, marginTop: 0 }}>
+                    Save shutdown
+                  </button>
+                  <a href={`/api/shutdown/export?shutdown=${encodeURIComponent(shutdown.id)}`} style={exportButtonStyle}>
+                    Export Excel
+                  </a>
+                </div>
               ) : null}
             </section>
           </form>
@@ -499,6 +504,16 @@ const secondaryLinkStyle = {
   color: "#111",
   textDecoration: "none",
   fontWeight: 900,
+} as const;
+
+const exportButtonStyle = {
+  padding: "11px 14px",
+  borderRadius: 8,
+  border: "1px solid #d1d5db",
+  background: "#fff",
+  color: "#111",
+  fontWeight: 900,
+  textDecoration: "none",
 } as const;
 
 const approvalGridHeaderStyle = {

@@ -133,6 +133,9 @@ export default async function AdminShutdownsPage({
                             <button type="submit" form={`active-${shutdown.id}`} style={smallButtonStyle}>
                               Save
                             </button>
+                            <a href={`/api/shutdown/export?shutdown=${encodeURIComponent(shutdown.id)}`} style={smallLinkStyle}>
+                              Export Excel
+                            </a>
                           </div>
                         ) : (
                           <Link href={`/admin/shutdowns/${shutdown.id}`} style={smallLinkStyle}>

@@ -21,7 +21,7 @@ Core app:
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `AUTH_COOKIE_SECRET`
 - `ALLOWED_EMAIL_DOMAINS`
-- `SHUTDOWN_ADMIN_ACTIONS_ENABLED` - set to `true` only when you want the Excel export and clear-for-next-shutdown controls visible.
+- `SHUTDOWN_ADMIN_ACTIONS_ENABLED` - set to `true` only when you want the clear-for-next-shutdown control enabled.
 
 Email approval flow:
 
