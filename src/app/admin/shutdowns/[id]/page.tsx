@@ -320,7 +320,7 @@ function RequestGroup() {
         Requests
       </summary>
       <div style={{ margin: "4px 0 2px 32px", display: "grid", gap: 4 }}>
-        <RequestSubLink href="/break-in/dashboard">Emergent</RequestSubLink>
+        <RequestSubLink href="/break-in/list">Emergent</RequestSubLink>
         <RequestSubLink href="/late-work/dashboard">Late Work</RequestSubLink>
         <RequestSubLink href="/work-removal/dashboard">Work Removal</RequestSubLink>
       </div>

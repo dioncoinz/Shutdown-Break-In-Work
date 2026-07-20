@@ -720,7 +720,7 @@ function RequestGroup() {
         Requests
       </summary>
       <div style={requestSubnavStyle}>
-        <Link href="/break-in/dashboard" prefetch={false} style={requestSubLinkStyle}>
+        <Link href="/break-in/list" prefetch={false} style={requestSubLinkStyle}>
           Emergent
         </Link>
         <Link href="/late-work/dashboard" prefetch={false} style={requestSubLinkStyle}>

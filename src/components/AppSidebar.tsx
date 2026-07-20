@@ -94,7 +94,7 @@ function RequestGroup({ active }: { active?: AppSidebarProps["active"] }) {
         Requests
       </summary>
       <div style={requestSubnavStyle}>
-        <RequestSubLink href="/break-in/dashboard" active={active === "emergent"}>
+        <RequestSubLink href="/break-in/list" active={active === "emergent"}>
           Emergent
         </RequestSubLink>
         <RequestSubLink href="/late-work/dashboard" active={active === "late-work"}>

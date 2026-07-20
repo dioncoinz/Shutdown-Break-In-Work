@@ -57,11 +57,12 @@ async function loadDashboardData(shutdownId: string | null) {
 export default async function WorkRemovalDashboardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ filter?: string; shutdown?: string }>;
+  searchParams: Promise<{ filter?: string; q?: string; shutdown?: string }>;
 }) {
   const currentUser = await requireCurrentUser();
   const sp = await searchParams;
   const filter = (sp?.filter ?? "ALL").toUpperCase();
+  const searchQuery = sp.q?.trim() ?? "";
   const loadedShutdowns = await listShutdowns();
   const selectedShutdown = getSelectedShutdown(loadedShutdowns.shutdowns, sp.shutdown);
   const selectedShutdownId = selectedShutdown?.id ?? null;
@@ -81,10 +82,15 @@ export default async function WorkRemovalDashboardPage({
     plannedById.set(resource.request_id, (plannedById.get(resource.request_id) ?? 0) + (Number(resource.hours) || 0));
   }
 
-  const approvedRows = loaded.rows.filter((row) => row.status === "APPROVED");
+  const normalizedSearch = searchQuery.toLowerCase();
+  const searchedRows = loaded.rows.filter((row) => {
+    const searchText = `${row.wo_number} ${row.wo_title ?? ""}`.toLowerCase();
+    return !normalizedSearch || searchText.includes(normalizedSearch);
+  });
+  const approvedRows = searchedRows.filter((row) => row.status === "APPROVED");
   const approvedHours = approvedRows.reduce((sum, row) => sum + (plannedById.get(row.id) ?? 0), 0);
 
-  const filteredRows = loaded.rows.filter((row) => {
+  const filteredRows = searchedRows.filter((row) => {
     if (filter === "ALL") return true;
     if (filter === "OUTSTANDING") return row.status !== "APPROVED" && row.status !== "REJECTED";
     return (row.status ?? "").toUpperCase() === filter;
@@ -102,6 +108,10 @@ export default async function WorkRemovalDashboardPage({
       <form method="GET" action="/work-removal/dashboard" style={{ marginTop: 18, display: "flex", justifyContent: "flex-end", gap: 8, flexWrap: "wrap", alignItems: "end" }}>
         <input type="hidden" name="filter" value={filter} />
         <label style={{ display: "grid", gap: 6 }}>
+          <span style={{ color: "#334155", fontSize: 12, fontWeight: 900 }}>Search</span>
+          <input name="q" defaultValue={searchQuery} placeholder="WO or description" style={searchInputStyle} />
+        </label>
+        <label style={{ display: "grid", gap: 6 }}>
           <span style={{ color: "#334155", fontSize: 12, fontWeight: 900 }}>Shutdown</span>
           <select name="shutdown" defaultValue={selectedShutdownId || ""} style={selectStyle}>
             {loadedShutdowns.shutdowns.length === 0 ? <option value="">No shutdowns found</option> : null}
@@ -116,9 +126,9 @@ export default async function WorkRemovalDashboardPage({
       </form>
 
       <div style={{ marginTop: 20, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 16 }}>
-        <KpiLink href={dashboardHref("ALL", selectedShutdownId)} active={filter === "ALL"} label="Total Requests" value={loaded.rows.length} />
-        <KpiLink href={dashboardHref("OUTSTANDING", selectedShutdownId)} active={filter === "OUTSTANDING"} label="Outstanding" value={loaded.rows.filter((row) => row.status !== "APPROVED" && row.status !== "REJECTED").length} />
-        <KpiLink href={dashboardHref("APPROVED", selectedShutdownId)} active={filter === "APPROVED"} label="Approved WOs Removed" value={approvedRows.length} color="#d97706" />
+        <KpiLink href={dashboardHref("ALL", selectedShutdownId, searchQuery)} active={filter === "ALL"} label="Total Requests" value={searchedRows.length} />
+        <KpiLink href={dashboardHref("OUTSTANDING", selectedShutdownId, searchQuery)} active={filter === "OUTSTANDING"} label="Outstanding" value={searchedRows.filter((row) => row.status !== "APPROVED" && row.status !== "REJECTED").length} />
+        <KpiLink href={dashboardHref("APPROVED", selectedShutdownId, searchQuery)} active={filter === "APPROVED"} label="Approved WOs Removed" value={approvedRows.length} color="#d97706" />
         <KpiCard label="Approved Hours Removed" value={approvedHours.toFixed(1)} suffix="h" color="#b45309" />
       </div>
 
@@ -169,10 +179,11 @@ function getSelectedShutdown(shutdowns: Shutdown[], requestedId?: string) {
   return shutdowns.find((shutdown) => shutdown.is_active) || shutdowns[0] || null;
 }
 
-function dashboardHref(filter: string, shutdownId: string | null) {
+function dashboardHref(filter: string, shutdownId: string | null, searchQuery: string) {
   const params = new URLSearchParams();
   if (filter !== "ALL") params.set("filter", filter);
   if (shutdownId) params.set("shutdown", shutdownId);
+  if (searchQuery) params.set("q", searchQuery);
   const query = params.toString();
   return query ? `/work-removal/dashboard?${query}` : "/work-removal/dashboard";
 }
@@ -237,6 +248,11 @@ const selectStyle = {
   color: "#111827",
   padding: "0 10px",
   fontWeight: 800,
+} as const;
+
+const searchInputStyle = {
+  ...selectStyle,
+  fontWeight: 600,
 } as const;
 
 const applyButtonStyle = {

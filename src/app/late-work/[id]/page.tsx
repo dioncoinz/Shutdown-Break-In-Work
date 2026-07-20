@@ -99,6 +99,11 @@ export default async function LateWorkDetailPage({
     { title: "Shutdown Coordinator review", stage: "COORD_REVIEW", activeStatuses: ["COORD_REVIEW"], doneStatuses: ["SUPER_REVIEW", "APPROVED", "REJECTED"], comment: request.coordinator_comment, completedBy: request.coordinator_decided_by, completedAt: request.coordinator_decided_at },
     { title: "Superintendent review", stage: "SUPER_REVIEW", activeStatuses: ["SUPER_REVIEW"], doneStatuses: ["APPROVED", "REJECTED"], comment: request.superintendent_comment, completedBy: request.superintendent_decided_by, completedAt: request.superintendent_decided_at },
   ] as const;
+  const rejectedStage = st === "REJECTED"
+    ? [...approvalStages].reverse().find((stage) => stage.completedBy || stage.completedAt)?.stage
+      ?? approvalStages[0].stage
+    : null;
+  const rejectedStageIndex = approvalStages.findIndex((stage) => stage.stage === rejectedStage);
 
   return (
     <div style={{ minHeight: "100vh", background: "#f4f6f8", display: "grid", gridTemplateColumns: "176px minmax(0, 1fr)" }}>
@@ -209,7 +214,7 @@ export default async function LateWorkDetailPage({
         ) : null}
         {sp.approvalError ? <Notice tone="error">{sp.approvalError}</Notice> : null}
         <div style={{ display: "grid", gap: 12 }}>
-          {approvalStages.map((stage) => (
+          {approvalStages.map((stage, stageIndex) => (
             <ApprovalBlock
               key={stage.title}
               title={stage.title}
@@ -220,6 +225,8 @@ export default async function LateWorkDetailPage({
               comment={stage.comment}
               completedBy={stage.completedBy}
               completedAt={stage.completedAt}
+              rejected={stage.stage === rejectedStage}
+              notApplicable={st === "REJECTED" && stageIndex > rejectedStageIndex}
               savePath={`/api/late-work/${id}/decision`}
               workgroup={request.workgroup}
               canAction={canApproveStage(currentUser, stage.stage)}
@@ -331,6 +338,8 @@ function ApprovalBlock({
   comment,
   completedBy,
   completedAt,
+  rejected,
+  notApplicable,
   savePath,
   workgroup,
   canAction,
@@ -343,15 +352,19 @@ function ApprovalBlock({
   comment: string | null;
   completedBy: string | null;
   completedAt: string | null;
+  rejected: boolean;
+  notApplicable: boolean;
   savePath: string;
   workgroup: string | null;
   canAction: boolean;
 }) {
   const isActive = activeStatuses.includes(currentStatus);
-  const isDone = doneStatuses.includes(currentStatus);
-  const label = isActive ? "Awaiting review" : isDone ? "Completed" : "Waiting";
-  const labelColor = isActive ? "#b45309" : isDone ? "#166534" : "#475569";
-  const labelBg = isActive ? "#fef3c7" : isDone ? "#dcfce7" : "#e2e8f0";
+  const isDone = currentStatus === "REJECTED"
+    ? !rejected && Boolean(completedBy || completedAt)
+    : doneStatuses.includes(currentStatus);
+  const label = notApplicable ? "N/A" : rejected ? "Rejected" : isActive ? "Awaiting review" : isDone ? "Completed" : "Waiting";
+  const labelColor = rejected ? "#b91c1c" : isActive ? "#b45309" : isDone ? "#166534" : "#475569";
+  const labelBg = rejected ? "#fee2e2" : isActive ? "#fef3c7" : isDone ? "#dcfce7" : "#e2e8f0";
   const needsWorkgroup = stage === "COORD_REVIEW";
 
   return (
@@ -359,14 +372,18 @@ function ApprovalBlock({
       <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
         <div>
           <div style={{ fontWeight: 900, color: "#111" }}>{title}</div>
-          {comment ? (
+          {notApplicable ? (
+            <div style={{ fontSize: 12, color: "#64748b", marginTop: 6, fontWeight: 500 }}>
+              Not applicable — workflow stopped after rejection.
+            </div>
+          ) : comment ? (
             <div style={{ marginTop: 8, fontSize: 13, color: "#1f2937", fontWeight: 500, lineHeight: 1.45 }}>{comment}</div>
           ) : (
             <div style={{ fontSize: 12, color: "#64748b", marginTop: 6, fontWeight: 500 }}>No comment recorded.</div>
           )}
-          {isDone && (completedBy || completedAt) && (
-            <div style={{ fontSize: 12, color: "#475569", marginTop: 8, fontWeight: 600 }}>
-              {completedBy ? `By ${completedBy}` : "Completed"}
+          {(isDone || rejected) && (completedBy || completedAt || rejected) && (
+            <div style={{ fontSize: 12, color: rejected ? "#b91c1c" : "#475569", marginTop: 8, fontWeight: 600 }}>
+              {completedBy ? `${rejected ? "Rejected" : "Completed"} by ${completedBy}` : rejected ? "Rejecting reviewer not recorded" : "Completed"}
               {completedAt ? ` on ${formatPerthDateTime(completedAt)}` : ""}
             </div>
           )}
