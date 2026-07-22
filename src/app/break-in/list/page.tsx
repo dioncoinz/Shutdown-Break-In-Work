@@ -64,7 +64,9 @@ export default async function EmergentWorkListPage({
     hoursByRequest.set(resource.request_id, (hoursByRequest.get(resource.request_id) ?? 0) + (Number(resource.hours) || 0));
   }
 
-  const outstanding = (row: Row) => row.status !== "COMPLETED" && row.status !== "REJECTED";
+  const approved = (row: Row) =>
+    row.status === "APPROVED" || row.status === "IN_PROGRESS" || row.status === "COMPLETED";
+  const outstanding = (row: Row) => !approved(row) && row.status !== "REJECTED";
   const normalizedSearch = searchQuery.toLowerCase();
   const searchedRows = loaded.rows.filter((row) => {
     const searchText = `${row.wo_number} ${row.wo_title ?? ""}`.toLowerCase();
@@ -73,8 +75,11 @@ export default async function EmergentWorkListPage({
   const filteredRows = searchedRows.filter((row) => {
     if (filter === "ALL") return true;
     if (filter === "OUTSTANDING") return outstanding(row);
+    if (filter === "APPROVED") return approved(row);
     return (row.status ?? "").toUpperCase() === filter;
   });
+  const approvedRows = searchedRows.filter(approved);
+  const approvedHours = approvedRows.reduce((sum, row) => sum + (hoursByRequest.get(row.id) ?? 0), 0);
 
   return (
     <div style={pageStyle}>
@@ -103,8 +108,8 @@ export default async function EmergentWorkListPage({
         <div style={kpiGridStyle}>
           <Kpi href={listHref("ALL", shutdownId, searchQuery)} active={filter === "ALL"} label="Total Requests" value={searchedRows.length} />
           <Kpi href={listHref("OUTSTANDING", shutdownId, searchQuery)} active={filter === "OUTSTANDING"} label="Outstanding" value={searchedRows.filter(outstanding).length} />
-          <Kpi href={listHref("IN_PROGRESS", shutdownId, searchQuery)} active={filter === "IN_PROGRESS"} label="In Progress" value={searchedRows.filter((row) => row.status === "IN_PROGRESS").length} color="#2563eb" />
-          <Kpi href={listHref("COMPLETED", shutdownId, searchQuery)} active={filter === "COMPLETED"} label="Completed" value={searchedRows.filter((row) => row.status === "COMPLETED").length} color="#16a34a" />
+          <Kpi href={listHref("APPROVED", shutdownId, searchQuery)} active={filter === "APPROVED"} label="Approved Emergent Work" value={approvedRows.length} color="#2563eb" />
+          <KpiCard label="Approved Emergent hours" value={approvedHours.toFixed(1)} suffix="h" color="#1d4ed8" />
         </div>
 
         <div style={tableWrapStyle}>
@@ -155,6 +160,15 @@ function Kpi({ href, active, label, value, color }: { href: string; active: bool
         <div style={{ marginTop: 8, fontSize: 12, color: "#444", opacity: 0.85 }}>Click to filter</div>
       </div>
     </Link>
+  );
+}
+
+function KpiCard({ label, value, suffix, color }: { label: string; value: string; suffix?: string; color?: string }) {
+  return (
+    <div style={{ ...kpiStyle, border: "1px solid rgba(0,0,0,0.06)" }}>
+      <div style={{ fontSize: 13, color: "#222", fontWeight: 800 }}>{label}</div>
+      <div style={{ marginTop: 6, fontSize: 28, fontWeight: 900, color: color || "#111" }}>{value}{suffix || ""}</div>
+    </div>
   );
 }
 
