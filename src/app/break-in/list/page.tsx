@@ -139,7 +139,7 @@ export default async function EmergentWorkListPage({
                   <Td><Status status={row.status || ""} /></Td>
                   <Td>{Math.max(0, Math.min(100, Math.round(row.progress_percent ?? 0)))}%</Td>
                   <Td>{(hoursByRequest.get(row.id) ?? 0).toFixed(1)}</Td><Td>{row.requestor_name || "-"}</Td>
-                  <Td><Link href={`/break-in/${row.id}`} style={openButtonStyle}>Open</Link></Td>
+                  <Td><Link href={`/break-in/${row.id}?returnTo=${encodeURIComponent(listHref(filter, shutdownId, searchQuery, selectedStatuses))}`} style={openButtonStyle}>Open</Link></Td>
                 </tr>
               ))}
               {filteredRows.length === 0 ? <tr><Td colSpan={9}>No emergent work requests found.</Td></tr> : null}

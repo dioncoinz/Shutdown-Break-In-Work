@@ -43,7 +43,7 @@ export default async function MyApprovalsPage() {
                     <Td><span style={statusBadgeStyle}>{formatStatus(approval.status)}</span></Td>
                     <Td>{formatPerthDateTime(approval.createdAt)}</Td>
                     <Td>{approval.requestorName || "-"}</Td>
-                    <Td><Link href={approval.href} style={openButtonStyle}>Review</Link></Td>
+                    <Td><Link href={`${approval.href}?returnTo=${encodeURIComponent("/approvals")}`} style={openButtonStyle}>Review</Link></Td>
                   </tr>
                 ))}
               </tbody>
