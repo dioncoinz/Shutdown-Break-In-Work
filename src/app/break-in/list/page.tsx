@@ -3,6 +3,7 @@ import { AppSidebar } from "@/components/AppSidebar";
 import { requireCurrentUser } from "@/lib/auth/current-user";
 import { listShutdowns, type Shutdown } from "@/lib/shutdown/setup";
 import { createSupabaseDb } from "@/lib/supabase/db";
+import { StatusColumnFilter } from "./StatusColumnFilter";
 
 type Row = {
   id: string;
@@ -44,12 +45,18 @@ async function loadEmergentWork(shutdownId: string | null) {
 export default async function EmergentWorkListPage({
   searchParams,
 }: {
-  searchParams: Promise<{ filter?: string; q?: string; shutdown?: string }>;
+  searchParams: Promise<{ filter?: string; q?: string; shutdown?: string; status?: string | string[] }>;
 }) {
   const currentUser = await requireCurrentUser();
   const params = await searchParams;
   const filter = (params.filter ?? "ALL").toUpperCase();
   const searchQuery = params.q?.trim() ?? "";
+  const requestedStatuses = Array.isArray(params.status)
+    ? params.status
+    : params.status
+      ? [params.status]
+      : [];
+  const selectedStatuses = [...new Set(requestedStatuses.map((status) => status.toUpperCase()))];
   const loadedShutdowns = await listShutdowns();
   const selectedShutdown = selectShutdown(loadedShutdowns.shutdowns, params.shutdown);
   const shutdownId = selectedShutdown?.id ?? null;
@@ -72,12 +79,19 @@ export default async function EmergentWorkListPage({
     const searchText = `${row.wo_number} ${row.wo_title ?? ""}`.toLowerCase();
     return !normalizedSearch || searchText.includes(normalizedSearch);
   });
-  const filteredRows = searchedRows.filter((row) => {
+  const selectedStatusSet = new Set(selectedStatuses);
+  const kpiFilteredRows = searchedRows.filter((row) => {
     if (filter === "ALL") return true;
     if (filter === "OUTSTANDING") return outstanding(row);
     if (filter === "APPROVED") return approved(row);
     return (row.status ?? "").toUpperCase() === filter;
   });
+  const filteredRows = kpiFilteredRows.filter((row) =>
+    selectedStatusSet.size === 0 || selectedStatusSet.has((row.status ?? "UNKNOWN").toUpperCase())
+  );
+  const availableStatuses = sortStatuses(
+    [...new Set(loaded.rows.map((row) => (row.status ?? "UNKNOWN").toUpperCase()))]
+  );
   const approvedRows = searchedRows.filter(approved);
   const approvedHours = approvedRows.reduce((sum, row) => sum + (hoursByRequest.get(row.id) ?? 0), 0);
 
@@ -89,6 +103,7 @@ export default async function EmergentWorkListPage({
 
         <form method="GET" action="/break-in/list" style={filterFormStyle}>
           <input type="hidden" name="filter" value={filter} />
+          {selectedStatuses.map((status) => <input key={status} type="hidden" name="status" value={status} />)}
           <label style={{ display: "grid", gap: 6 }}>
             <span style={{ color: "#334155", fontSize: 12, fontWeight: 900 }}>Search</span>
             <input name="q" defaultValue={searchQuery} placeholder="WO or description" style={searchInputStyle} />
@@ -106,16 +121,16 @@ export default async function EmergentWorkListPage({
         </form>
 
         <div style={kpiGridStyle}>
-          <Kpi href={listHref("ALL", shutdownId, searchQuery)} active={filter === "ALL"} label="Total Requests" value={searchedRows.length} />
-          <Kpi href={listHref("OUTSTANDING", shutdownId, searchQuery)} active={filter === "OUTSTANDING"} label="Outstanding" value={searchedRows.filter(outstanding).length} />
-          <Kpi href={listHref("APPROVED", shutdownId, searchQuery)} active={filter === "APPROVED"} label="Approved Emergent Work" value={approvedRows.length} color="#2563eb" />
+          <Kpi href={listHref("ALL", shutdownId, searchQuery, selectedStatuses)} active={filter === "ALL"} label="Total Requests" value={searchedRows.length} />
+          <Kpi href={listHref("OUTSTANDING", shutdownId, searchQuery, selectedStatuses)} active={filter === "OUTSTANDING"} label="Outstanding" value={searchedRows.filter(outstanding).length} />
+          <Kpi href={listHref("APPROVED", shutdownId, searchQuery, selectedStatuses)} active={filter === "APPROVED"} label="Approved Emergent Work" value={approvedRows.length} color="#2563eb" />
           <KpiCard label="Approved Emergent hours" value={approvedHours.toFixed(1)} suffix="h" color="#1d4ed8" />
         </div>
 
         <div style={tableWrapStyle}>
           <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 900 }}>
             <thead style={{ background: "#f1f3f5" }}>
-              <tr><Th>WO</Th><Th>Title</Th><Th>Area</Th><Th>Workgroup</Th><Th>Status</Th><Th>Progress</Th><Th>Planned hrs</Th><Th>Requestor</Th><Th /></tr>
+              <tr><Th>WO</Th><Th>Title</Th><Th>Area</Th><Th>Workgroup</Th><Th><StatusColumnFilter statuses={availableStatuses} selectedStatuses={selectedStatuses} /></Th><Th>Progress</Th><Th>Planned hrs</Th><Th>Requestor</Th><Th /></tr>
             </thead>
             <tbody>
               {filteredRows.map((row, index) => (
@@ -143,11 +158,12 @@ function selectShutdown(shutdowns: Shutdown[], requestedId?: string) {
     || null;
 }
 
-function listHref(filter: string, shutdownId: string | null, searchQuery: string) {
+function listHref(filter: string, shutdownId: string | null, searchQuery: string, statuses: string[]) {
   const params = new URLSearchParams();
   if (filter !== "ALL") params.set("filter", filter);
   if (shutdownId) params.set("shutdown", shutdownId);
   if (searchQuery) params.set("q", searchQuery);
+  for (const status of statuses) params.append("status", status);
   return params.size ? `/break-in/list?${params}` : "/break-in/list";
 }
 
@@ -161,6 +177,15 @@ function Kpi({ href, active, label, value, color }: { href: string; active: bool
       </div>
     </Link>
   );
+}
+
+function sortStatuses(statuses: string[]) {
+  const order = ["SUBMITTED", "COORD_REVIEW", "SUPER_REVIEW", "MANAGER_REVIEW", "APPROVED", "IN_PROGRESS", "COMPLETED", "REJECTED"];
+  return statuses.sort((a, b) => {
+    const aIndex = order.indexOf(a);
+    const bIndex = order.indexOf(b);
+    return (aIndex === -1 ? order.length : aIndex) - (bIndex === -1 ? order.length : bIndex) || a.localeCompare(b);
+  });
 }
 
 function KpiCard({ label, value, suffix, color }: { label: string; value: string; suffix?: string; color?: string }) {
