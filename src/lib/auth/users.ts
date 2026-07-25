@@ -170,6 +170,7 @@ export async function createAppUser(input: {
 }
 
 export async function inviteAppUser(input: {
+  appBaseUrl?: string;
   email: string;
   full_name?: string;
   role?: string;
@@ -214,6 +215,7 @@ export async function inviteAppUser(input: {
   }
 
   await sendUserInviteEmail({
+    appBaseUrl: input.appBaseUrl,
     email,
     fullName: input.full_name,
     token,
@@ -222,7 +224,7 @@ export async function inviteAppUser(input: {
   return data as AppUser;
 }
 
-export async function resendUserInvite(id: string) {
+export async function resendUserInvite(id: string, appBaseUrl?: string) {
   const userId = id.trim();
 
   if (!userId) {
@@ -253,6 +255,7 @@ export async function resendUserInvite(id: string) {
 
   const user = data as AppUser;
   await sendUserInviteEmail({
+    appBaseUrl,
     email: user.email,
     fullName: user.full_name,
     token,

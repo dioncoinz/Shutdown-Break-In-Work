@@ -20,6 +20,7 @@ export async function POST(req: Request) {
     ? Object.fromEntries((await req.formData()).entries())
     : ((await req.json().catch(() => ({}))) as Record<string, unknown>);
   const action = String(input._action || "create");
+  const appBaseUrl = getRequestOrigin(req);
   const canManageAdmins = isPrimaryAdminUser(auth.user);
 
   try {
@@ -60,7 +61,7 @@ export async function POST(req: Request) {
         throw new Error("Only the primary administrator can manage admin accounts.");
       }
 
-      const user = await resendUserInvite(id);
+      const user = await resendUserInvite(id, appBaseUrl);
 
       if (isFormPost) {
         return NextResponse.redirect(new URL("/admin/users?invited=1", req.url), { status: 303 });
@@ -99,6 +100,7 @@ export async function POST(req: Request) {
           });
     } else {
       user = await inviteAppUser({
+            appBaseUrl,
             email: String(input.email || ""),
             full_name: String(input.full_name || ""),
             role,
@@ -123,4 +125,15 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ error: message }, { status: 400 });
   }
+}
+
+function getRequestOrigin(req: Request) {
+  const forwardedHost = req.headers.get("x-forwarded-host")?.split(",")[0]?.trim();
+  const forwardedProtocol = req.headers.get("x-forwarded-proto")?.split(",")[0]?.trim();
+
+  if (forwardedHost) {
+    return `${forwardedProtocol || "https"}://${forwardedHost}`;
+  }
+
+  return new URL(req.url).origin;
 }

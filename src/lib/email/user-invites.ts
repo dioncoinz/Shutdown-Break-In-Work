@@ -18,6 +18,7 @@ function escapeHtml(value: string | null | undefined) {
 }
 
 export async function sendUserInviteEmail(input: {
+  appBaseUrl?: string;
   email: string;
   fullName?: string | null;
   token: string;
@@ -29,7 +30,7 @@ export async function sendUserInviteEmail(input: {
     throw new Error("Email provider not configured. Set RESEND_API_KEY and EMAIL_FROM.");
   }
 
-  const baseUrl = getAppBaseUrl().replace(/\/+$/, "");
+  const baseUrl = (input.appBaseUrl || getAppBaseUrl()).replace(/\/+$/, "");
   const inviteUrl = `${baseUrl}/invite/${encodeURIComponent(input.token)}`;
   const name = input.fullName?.trim() || input.email;
   const subject = "You have been invited to Breakinz";
