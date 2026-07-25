@@ -737,6 +737,9 @@ function RequestGroup() {
         <Link href="/work-removal/dashboard" prefetch={false} style={requestSubLinkStyle}>
           Work Removal
         </Link>
+        <Link href="/requests/deleted" prefetch={false} style={requestSubLinkStyle}>
+          Deleted
+        </Link>
       </div>
     </details>
   );
