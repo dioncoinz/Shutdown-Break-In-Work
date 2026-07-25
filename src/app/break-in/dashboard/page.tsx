@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { DailyReportSummary } from "@/components/DailyReportSummary";
 import { requireCurrentUser } from "@/lib/auth/current-user";
 import { listEmailActivityForShutdown } from "@/lib/email/tracking";
 import {
@@ -152,6 +153,8 @@ export default async function DashboardPage({
               </label>
               <button type="submit" style={shutdownApplyStyle}>Apply</button>
             </form>
+
+            {activeShutdown ? <DailyReportSummary shutdownId={activeShutdown.id} /> : null}
 
             <section style={metricPanelStyle}>
               <div>
