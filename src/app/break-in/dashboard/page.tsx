@@ -154,7 +154,12 @@ export default async function DashboardPage({
               <button type="submit" style={shutdownApplyStyle}>Apply</button>
             </form>
 
-            {activeShutdown ? <DailyReportSummary shutdownId={activeShutdown.id} /> : null}
+            {activeShutdown ? (
+              <DailyReportSummary
+                shutdownId={activeShutdown.id}
+                shutdownStartDate={activeShutdown.start_date}
+              />
+            ) : null}
 
             <section style={metricPanelStyle}>
               <div>

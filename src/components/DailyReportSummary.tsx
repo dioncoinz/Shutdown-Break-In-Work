@@ -24,8 +24,14 @@ const COLOURS = {
   removed: "#e66628",
 };
 
-export async function DailyReportSummary({ shutdownId }: { shutdownId: string }) {
-  const data = await loadSummaryData(shutdownId);
+export async function DailyReportSummary({
+  shutdownId,
+  shutdownStartDate,
+}: {
+  shutdownId: string;
+  shutdownStartDate: string | null;
+}) {
+  const data = await loadSummaryData(shutdownId, shutdownStartDate);
   const emergentHours = hoursByRequest(data.emergentResources);
   const removalHours = hoursByRequest(data.removalResources);
   const includedEmergent = data.emergent.filter((row) => row.status !== "REJECTED");
@@ -67,7 +73,12 @@ export async function DailyReportSummary({ shutdownId }: { shutdownId: string })
       <div className={styles.kpiGrid} aria-label="Scope change headline metrics">
         <Kpi label="Total emergent requests" metric={total} accent="#17272b" hint="Rejected requests excluded" />
         <Kpi label="Completed" metric={completed} accent={COLOURS.completed} hint={`${completionRate}% of emergent requests`} />
-        <Kpi label="Removed" metric={removed} accent={COLOURS.removed} hint="Approved scope removals" />
+        <Kpi
+          label="Removed"
+          metric={removed}
+          accent={COLOURS.removed}
+          hint={shutdownStartDate ? "Approved since shutdown start" : "Approved scope removals"}
+        />
         <Kpi label="In progress" metric={inProgress} accent={COLOURS.inProgress} hint="Currently being executed" />
       </div>
 
@@ -117,12 +128,21 @@ export async function DailyReportSummary({ shutdownId }: { shutdownId: string })
   );
 }
 
-async function loadSummaryData(shutdownId: string) {
+async function loadSummaryData(shutdownId: string, shutdownStartDate: string | null) {
   const supabase = createSupabaseDb();
+  let removalQuery = supabase
+    .from("work_removal_requests")
+    .select("id, status")
+    .eq("shutdown_id", shutdownId);
+
+  if (shutdownStartDate) {
+    removalQuery = removalQuery.gte("created_at", `${shutdownStartDate}T00:00:00+08:00`);
+  }
+
   const [emergent, emergentResources, removals, removalResources] = await Promise.all([
     supabase.from("break_in_requests").select("id, status").eq("shutdown_id", shutdownId),
     supabase.from("break_in_resources").select("request_id, hours"),
-    supabase.from("work_removal_requests").select("id, status").eq("shutdown_id", shutdownId),
+    removalQuery,
     supabase.from("work_removal_resources").select("request_id, hours"),
   ]);
   const error = emergent.error || emergentResources.error || removals.error || removalResources.error;
