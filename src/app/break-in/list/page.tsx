@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { AppSidebar } from "@/components/AppSidebar";
-import { requireCurrentUser } from "@/lib/auth/current-user";
+import { ProgressUpdateModal } from "@/components/ProgressUpdateModal";
+import { canEditRequests, requireCurrentUser } from "@/lib/auth/current-user";
 import { listShutdowns, type Shutdown } from "@/lib/shutdown/setup";
 import { createSupabaseDb } from "@/lib/supabase/db";
 import { StatusColumnFilter } from "./StatusColumnFilter";
@@ -9,7 +10,10 @@ type Row = {
   id: string;
   wo_number: string;
   wo_title: string | null;
+  reason: string | null;
+  consequence: string | null;
   area: string | null;
+  priority: string | null;
   workgroup: string | null;
   status: string | null;
   progress_percent: number | null;
@@ -22,7 +26,7 @@ async function loadEmergentWork(shutdownId: string | null) {
   const supabase = createSupabaseDb();
   let query = supabase
     .from("break_in_requests")
-    .select("id, wo_number, wo_title, area, workgroup, status, progress_percent, requestor_name")
+    .select("id, wo_number, wo_title, reason, consequence, area, priority, workgroup, status, progress_percent, requestor_name")
     .order("created_at", { ascending: false });
 
   if (shutdownId) query = query.eq("shutdown_id", shutdownId);
@@ -48,6 +52,7 @@ export default async function EmergentWorkListPage({
   searchParams: Promise<{ filter?: string; q?: string; shutdown?: string; status?: string | string[] }>;
 }) {
   const currentUser = await requireCurrentUser();
+  const canUpdateProgress = canEditRequests(currentUser);
   const params = await searchParams;
   const filter = (params.filter ?? "ALL").toUpperCase();
   const searchQuery = params.q?.trim() ?? "";
@@ -139,7 +144,23 @@ export default async function EmergentWorkListPage({
                   <Td><Status status={row.status || ""} /></Td>
                   <Td>{Math.max(0, Math.min(100, Math.round(row.progress_percent ?? 0)))}%</Td>
                   <Td>{(hoursByRequest.get(row.id) ?? 0).toFixed(1)}</Td><Td>{row.requestor_name || "-"}</Td>
-                  <Td><Link href={`/break-in/${row.id}?returnTo=${encodeURIComponent(listHref(filter, shutdownId, searchQuery, selectedStatuses))}`} style={openButtonStyle}>Open</Link></Td>
+                  <Td>
+                    <ProgressUpdateModal
+                      id={row.id}
+                      workOrder={row.wo_number}
+                      title={row.wo_title}
+                      initialPercent={row.progress_percent ?? 0}
+                      status={row.status}
+                      area={row.area}
+                      priority={row.priority}
+                      workgroup={row.workgroup}
+                      requestor={row.requestor_name}
+                      reason={row.reason}
+                      consequence={row.consequence}
+                      plannedHours={hoursByRequest.get(row.id) ?? 0}
+                      canEdit={canUpdateProgress}
+                    />
+                  </Td>
                 </tr>
               ))}
               {filteredRows.length === 0 ? <tr><Td colSpan={9}>No emergent work requests found.</Td></tr> : null}
@@ -218,4 +239,3 @@ const tableWrapStyle = { marginTop: 22, background: "#fff", borderRadius: 14, bo
 const selectStyle = { minWidth: 260, height: 40, border: "1px solid #d1d5db", borderRadius: 8, background: "#fff", color: "#111827", padding: "0 10px", fontWeight: 800 } as const;
 const searchInputStyle = { ...selectStyle, fontWeight: 600 } as const;
 const applyButtonStyle = { height: 40, border: "1px solid #ea580c", borderRadius: 8, background: "#f97316", color: "#fff", padding: "0 14px", fontWeight: 900, cursor: "pointer" } as const;
-const openButtonStyle = { padding: "8px 12px", borderRadius: 10, border: "1px solid #cbd5e1", background: "#f8fafc", color: "#0f172a", fontWeight: 700, textDecoration: "none" } as const;
