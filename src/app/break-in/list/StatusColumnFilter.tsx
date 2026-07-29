@@ -25,14 +25,19 @@ export function StatusColumnFilter({
       if (!buttonRef.current?.contains(target) && !panelRef.current?.contains(target)) setOpen(false);
     };
     const close = () => setOpen(false);
+    const closeOnOutsideScroll = (event: Event) => {
+      const target = event.target;
+      if (target instanceof Node && panelRef.current?.contains(target)) return;
+      setOpen(false);
+    };
 
     document.addEventListener("mousedown", closeOnOutsideClick);
     window.addEventListener("resize", close);
-    window.addEventListener("scroll", close, true);
+    window.addEventListener("scroll", closeOnOutsideScroll, true);
     return () => {
       document.removeEventListener("mousedown", closeOnOutsideClick);
       window.removeEventListener("resize", close);
-      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("scroll", closeOnOutsideScroll, true);
     };
   }, [open]);
 
@@ -40,8 +45,10 @@ export function StatusColumnFilter({
     if (!open && buttonRef.current) {
       const rect = buttonRef.current.getBoundingClientRect();
       const panelWidth = 268;
+      const panelHeight = Math.min(410, window.innerHeight - 24);
+      const fitsBelow = window.innerHeight - rect.bottom - 12 >= panelHeight;
       setPosition({
-        top: rect.bottom + 8,
+        top: fitsBelow ? rect.bottom + 8 : Math.max(12, rect.top - panelHeight - 8),
         left: Math.max(12, Math.min(rect.left, window.innerWidth - panelWidth - 12)),
       });
       setDraft(new Set(selectedStatuses.length ? selectedStatuses : statuses));
@@ -100,9 +107,9 @@ export function StatusColumnFilter({
       </button>
 
       {open ? (
-        <div ref={panelRef} role="dialog" aria-label="Status filter" style={{ position: "fixed", top: position.top, left: position.left, zIndex: 1000, width: 268, background: "#fff", border: "1px solid #cbd5e1", borderRadius: 10, boxShadow: "0 12px 32px rgba(15,23,42,0.22)", color: "#0f172a", whiteSpace: "normal" }}>
+        <div ref={panelRef} role="dialog" aria-label="Status filter" style={{ position: "fixed", top: position.top, left: position.left, zIndex: 1000, width: "min(268px, calc(100vw - 24px))", maxHeight: "calc(100dvh - 24px)", display: "flex", flexDirection: "column", background: "#fff", border: "1px solid #cbd5e1", borderRadius: 10, boxShadow: "0 12px 32px rgba(15,23,42,0.22)", color: "#0f172a", whiteSpace: "normal", overflow: "hidden" }}>
           <div style={{ padding: "12px 14px", borderBottom: "1px solid #e2e8f0", fontSize: 13, fontWeight: 900 }}>Filter by status</div>
-          <div style={{ maxHeight: 280, overflowY: "auto", padding: "8px 10px" }}>
+          <div style={{ minHeight: 0, maxHeight: 280, overflowY: "auto", overscrollBehavior: "contain", WebkitOverflowScrolling: "touch", padding: "8px 10px" }}>
             <label style={optionStyle}>
               <input
                 type="checkbox"
