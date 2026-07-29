@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { DailyReportSummary } from "@/components/DailyReportSummary";
 import { requireCurrentUser } from "@/lib/auth/current-user";
 import { listEmailActivityForShutdown } from "@/lib/email/tracking";
 import {
@@ -152,6 +153,13 @@ export default async function DashboardPage({
               </label>
               <button type="submit" style={shutdownApplyStyle}>Apply</button>
             </form>
+
+            {activeShutdown ? (
+              <DailyReportSummary
+                shutdownId={activeShutdown.id}
+                shutdownStartDate={activeShutdown.start_date}
+              />
+            ) : null}
 
             <section style={metricPanelStyle}>
               <div>
@@ -728,6 +736,9 @@ function RequestGroup() {
         </Link>
         <Link href="/work-removal/dashboard" prefetch={false} style={requestSubLinkStyle}>
           Work Removal
+        </Link>
+        <Link href="/requests/deleted" prefetch={false} style={requestSubLinkStyle}>
+          Deleted
         </Link>
       </div>
     </details>

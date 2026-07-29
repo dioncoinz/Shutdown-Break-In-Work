@@ -251,7 +251,7 @@ export default async function ReportsPage({
                     {showProgressColumn ? <Td>{row.progress_percent ?? 0}%</Td> : null}
                     <Td>{row.requestor_name || "-"}</Td>
                     <Td>
-                      <Link href={openHref(reportType, row.id)} style={smallLinkStyle}>
+                      <Link href={openHref(reportType, row.id, `${reportHref(type, selectedShutdownId, statusFilter)}#detailed-report`)} style={smallLinkStyle}>
                         Open
                       </Link>
                     </Td>
@@ -340,10 +340,9 @@ function statusHref(status: StatusFilter, shutdownId: string | null) {
   return `${reportHref("all", shutdownId, status)}#detailed-report`;
 }
 
-function openHref(type: ReportType, id: string) {
-  if (type === "late") return `/late-work/${id}`;
-  if (type === "removed") return `/work-removal/${id}`;
-  return `/break-in/${id}`;
+function openHref(type: ReportType, id: string, returnTo: string) {
+  const path = type === "late" ? `/late-work/${id}` : type === "removed" ? `/work-removal/${id}` : `/break-in/${id}`;
+  return `${path}?returnTo=${encodeURIComponent(returnTo)}`;
 }
 
 function typeLabel(type: ReportViewType) {

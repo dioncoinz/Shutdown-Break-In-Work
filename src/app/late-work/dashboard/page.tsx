@@ -177,7 +177,7 @@ export default async function LateWorkDashboardPage({
                 <Td><StatusBadge status={row.status || ""} /></Td>
                 <Td>{(plannedById.get(row.id) ?? 0).toFixed(1)}</Td>
                 <Td>{row.requestor_name || "-"}</Td>
-                <Td><Link href={`/late-work/${row.id}`} style={openButtonStyle}>Open</Link></Td>
+                <Td><Link href={`/late-work/${row.id}?returnTo=${encodeURIComponent(dashboardHref(filter, selectedShutdownId, searchQuery))}`} style={openButtonStyle}>Open</Link></Td>
               </tr>
             ))}
             {filteredRows.length === 0 && (

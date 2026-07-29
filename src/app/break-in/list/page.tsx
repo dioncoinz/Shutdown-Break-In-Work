@@ -1,14 +1,19 @@
 import Link from "next/link";
 import { AppSidebar } from "@/components/AppSidebar";
-import { requireCurrentUser } from "@/lib/auth/current-user";
+import { ProgressUpdateModal } from "@/components/ProgressUpdateModal";
+import { canEditRequests, requireCurrentUser } from "@/lib/auth/current-user";
 import { listShutdowns, type Shutdown } from "@/lib/shutdown/setup";
 import { createSupabaseDb } from "@/lib/supabase/db";
+import { StatusColumnFilter } from "./StatusColumnFilter";
 
 type Row = {
   id: string;
   wo_number: string;
   wo_title: string | null;
+  reason: string | null;
+  consequence: string | null;
   area: string | null;
+  priority: string | null;
   workgroup: string | null;
   status: string | null;
   progress_percent: number | null;
@@ -21,7 +26,7 @@ async function loadEmergentWork(shutdownId: string | null) {
   const supabase = createSupabaseDb();
   let query = supabase
     .from("break_in_requests")
-    .select("id, wo_number, wo_title, area, workgroup, status, progress_percent, requestor_name")
+    .select("id, wo_number, wo_title, reason, consequence, area, priority, workgroup, status, progress_percent, requestor_name")
     .order("created_at", { ascending: false });
 
   if (shutdownId) query = query.eq("shutdown_id", shutdownId);
@@ -44,12 +49,19 @@ async function loadEmergentWork(shutdownId: string | null) {
 export default async function EmergentWorkListPage({
   searchParams,
 }: {
-  searchParams: Promise<{ filter?: string; q?: string; shutdown?: string }>;
+  searchParams: Promise<{ filter?: string; q?: string; shutdown?: string; status?: string | string[] }>;
 }) {
   const currentUser = await requireCurrentUser();
+  const canUpdateProgress = canEditRequests(currentUser);
   const params = await searchParams;
   const filter = (params.filter ?? "ALL").toUpperCase();
   const searchQuery = params.q?.trim() ?? "";
+  const requestedStatuses = Array.isArray(params.status)
+    ? params.status
+    : params.status
+      ? [params.status]
+      : [];
+  const selectedStatuses = [...new Set(requestedStatuses.map((status) => status.toUpperCase()))];
   const loadedShutdowns = await listShutdowns();
   const selectedShutdown = selectShutdown(loadedShutdowns.shutdowns, params.shutdown);
   const shutdownId = selectedShutdown?.id ?? null;
@@ -64,17 +76,29 @@ export default async function EmergentWorkListPage({
     hoursByRequest.set(resource.request_id, (hoursByRequest.get(resource.request_id) ?? 0) + (Number(resource.hours) || 0));
   }
 
-  const outstanding = (row: Row) => row.status !== "COMPLETED" && row.status !== "REJECTED";
+  const approved = (row: Row) =>
+    row.status === "APPROVED" || row.status === "IN_PROGRESS" || row.status === "COMPLETED";
+  const outstanding = (row: Row) => !approved(row) && row.status !== "REJECTED";
   const normalizedSearch = searchQuery.toLowerCase();
   const searchedRows = loaded.rows.filter((row) => {
     const searchText = `${row.wo_number} ${row.wo_title ?? ""}`.toLowerCase();
     return !normalizedSearch || searchText.includes(normalizedSearch);
   });
-  const filteredRows = searchedRows.filter((row) => {
+  const selectedStatusSet = new Set(selectedStatuses);
+  const kpiFilteredRows = searchedRows.filter((row) => {
     if (filter === "ALL") return true;
     if (filter === "OUTSTANDING") return outstanding(row);
+    if (filter === "APPROVED") return approved(row);
     return (row.status ?? "").toUpperCase() === filter;
   });
+  const filteredRows = kpiFilteredRows.filter((row) =>
+    selectedStatusSet.size === 0 || selectedStatusSet.has((row.status ?? "UNKNOWN").toUpperCase())
+  );
+  const availableStatuses = sortStatuses(
+    [...new Set(loaded.rows.map((row) => (row.status ?? "UNKNOWN").toUpperCase()))]
+  );
+  const approvedRows = searchedRows.filter(approved);
+  const approvedHours = approvedRows.reduce((sum, row) => sum + (hoursByRequest.get(row.id) ?? 0), 0);
 
   return (
     <div style={pageStyle}>
@@ -84,6 +108,7 @@ export default async function EmergentWorkListPage({
 
         <form method="GET" action="/break-in/list" style={filterFormStyle}>
           <input type="hidden" name="filter" value={filter} />
+          {selectedStatuses.map((status) => <input key={status} type="hidden" name="status" value={status} />)}
           <label style={{ display: "grid", gap: 6 }}>
             <span style={{ color: "#334155", fontSize: 12, fontWeight: 900 }}>Search</span>
             <input name="q" defaultValue={searchQuery} placeholder="WO or description" style={searchInputStyle} />
@@ -101,16 +126,16 @@ export default async function EmergentWorkListPage({
         </form>
 
         <div style={kpiGridStyle}>
-          <Kpi href={listHref("ALL", shutdownId, searchQuery)} active={filter === "ALL"} label="Total Requests" value={searchedRows.length} />
-          <Kpi href={listHref("OUTSTANDING", shutdownId, searchQuery)} active={filter === "OUTSTANDING"} label="Outstanding" value={searchedRows.filter(outstanding).length} />
-          <Kpi href={listHref("IN_PROGRESS", shutdownId, searchQuery)} active={filter === "IN_PROGRESS"} label="In Progress" value={searchedRows.filter((row) => row.status === "IN_PROGRESS").length} color="#2563eb" />
-          <Kpi href={listHref("COMPLETED", shutdownId, searchQuery)} active={filter === "COMPLETED"} label="Completed" value={searchedRows.filter((row) => row.status === "COMPLETED").length} color="#16a34a" />
+          <Kpi href={listHref("ALL", shutdownId, searchQuery, selectedStatuses)} active={filter === "ALL"} label="Total Requests" value={searchedRows.length} />
+          <Kpi href={listHref("OUTSTANDING", shutdownId, searchQuery, selectedStatuses)} active={filter === "OUTSTANDING"} label="Outstanding" value={searchedRows.filter(outstanding).length} />
+          <Kpi href={listHref("APPROVED", shutdownId, searchQuery, selectedStatuses)} active={filter === "APPROVED"} label="Approved Emergent Work" value={approvedRows.length} color="#2563eb" />
+          <KpiCard label="Approved Emergent hours" value={approvedHours.toFixed(1)} suffix="h" color="#1d4ed8" />
         </div>
 
         <div style={tableWrapStyle}>
           <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 900 }}>
             <thead style={{ background: "#f1f3f5" }}>
-              <tr><Th>WO</Th><Th>Title</Th><Th>Area</Th><Th>Workgroup</Th><Th>Status</Th><Th>Progress</Th><Th>Planned hrs</Th><Th>Requestor</Th><Th /></tr>
+              <tr><Th>WO</Th><Th>Title</Th><Th>Area</Th><Th>Workgroup</Th><Th><StatusColumnFilter statuses={availableStatuses} selectedStatuses={selectedStatuses} /></Th><Th>Progress</Th><Th>Planned hrs</Th><Th>Requestor</Th><Th /></tr>
             </thead>
             <tbody>
               {filteredRows.map((row, index) => (
@@ -119,7 +144,23 @@ export default async function EmergentWorkListPage({
                   <Td><Status status={row.status || ""} /></Td>
                   <Td>{Math.max(0, Math.min(100, Math.round(row.progress_percent ?? 0)))}%</Td>
                   <Td>{(hoursByRequest.get(row.id) ?? 0).toFixed(1)}</Td><Td>{row.requestor_name || "-"}</Td>
-                  <Td><Link href={`/break-in/${row.id}`} style={openButtonStyle}>Open</Link></Td>
+                  <Td>
+                    <ProgressUpdateModal
+                      id={row.id}
+                      workOrder={row.wo_number}
+                      title={row.wo_title}
+                      initialPercent={row.progress_percent ?? 0}
+                      status={row.status}
+                      area={row.area}
+                      priority={row.priority}
+                      workgroup={row.workgroup}
+                      requestor={row.requestor_name}
+                      reason={row.reason}
+                      consequence={row.consequence}
+                      plannedHours={hoursByRequest.get(row.id) ?? 0}
+                      canEdit={canUpdateProgress}
+                    />
+                  </Td>
                 </tr>
               ))}
               {filteredRows.length === 0 ? <tr><Td colSpan={9}>No emergent work requests found.</Td></tr> : null}
@@ -138,11 +179,12 @@ function selectShutdown(shutdowns: Shutdown[], requestedId?: string) {
     || null;
 }
 
-function listHref(filter: string, shutdownId: string | null, searchQuery: string) {
+function listHref(filter: string, shutdownId: string | null, searchQuery: string, statuses: string[]) {
   const params = new URLSearchParams();
   if (filter !== "ALL") params.set("filter", filter);
   if (shutdownId) params.set("shutdown", shutdownId);
   if (searchQuery) params.set("q", searchQuery);
+  for (const status of statuses) params.append("status", status);
   return params.size ? `/break-in/list?${params}` : "/break-in/list";
 }
 
@@ -155,6 +197,24 @@ function Kpi({ href, active, label, value, color }: { href: string; active: bool
         <div style={{ marginTop: 8, fontSize: 12, color: "#444", opacity: 0.85 }}>Click to filter</div>
       </div>
     </Link>
+  );
+}
+
+function sortStatuses(statuses: string[]) {
+  const order = ["SUBMITTED", "COORD_REVIEW", "SUPER_REVIEW", "MANAGER_REVIEW", "APPROVED", "IN_PROGRESS", "COMPLETED", "REJECTED"];
+  return statuses.sort((a, b) => {
+    const aIndex = order.indexOf(a);
+    const bIndex = order.indexOf(b);
+    return (aIndex === -1 ? order.length : aIndex) - (bIndex === -1 ? order.length : bIndex) || a.localeCompare(b);
+  });
+}
+
+function KpiCard({ label, value, suffix, color }: { label: string; value: string; suffix?: string; color?: string }) {
+  return (
+    <div style={{ ...kpiStyle, border: "1px solid rgba(0,0,0,0.06)" }}>
+      <div style={{ fontSize: 13, color: "#222", fontWeight: 800 }}>{label}</div>
+      <div style={{ marginTop: 6, fontSize: 28, fontWeight: 900, color: color || "#111" }}>{value}{suffix || ""}</div>
+    </div>
   );
 }
 
@@ -179,4 +239,3 @@ const tableWrapStyle = { marginTop: 22, background: "#fff", borderRadius: 14, bo
 const selectStyle = { minWidth: 260, height: 40, border: "1px solid #d1d5db", borderRadius: 8, background: "#fff", color: "#111827", padding: "0 10px", fontWeight: 800 } as const;
 const searchInputStyle = { ...selectStyle, fontWeight: 600 } as const;
 const applyButtonStyle = { height: 40, border: "1px solid #ea580c", borderRadius: 8, background: "#f97316", color: "#fff", padding: "0 14px", fontWeight: 900, cursor: "pointer" } as const;
-const openButtonStyle = { padding: "8px 12px", borderRadius: 10, border: "1px solid #cbd5e1", background: "#f8fafc", color: "#0f172a", fontWeight: 700, textDecoration: "none" } as const;

@@ -323,6 +323,7 @@ function RequestGroup() {
         <RequestSubLink href="/break-in/list">Emergent</RequestSubLink>
         <RequestSubLink href="/late-work/dashboard">Late Work</RequestSubLink>
         <RequestSubLink href="/work-removal/dashboard">Work Removal</RequestSubLink>
+        <RequestSubLink href="/requests/deleted">Deleted</RequestSubLink>
       </div>
     </details>
   );

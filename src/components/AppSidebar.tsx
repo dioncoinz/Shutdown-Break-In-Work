@@ -8,7 +8,7 @@ type SidebarUser = {
 };
 
 type AppSidebarProps = {
-  active?: "dashboard" | "calendar" | "shutdowns" | "create-shutdown" | "reports" | "users" | "emergent" | "late-work" | "work-removal";
+  active?: "dashboard" | "calendar" | "shutdowns" | "create-shutdown" | "reports" | "users" | "emergent" | "late-work" | "work-removal" | "deleted";
   user: SidebarUser;
 };
 
@@ -102,6 +102,9 @@ function RequestGroup({ active }: { active?: AppSidebarProps["active"] }) {
         </RequestSubLink>
         <RequestSubLink href="/work-removal/dashboard" active={active === "work-removal"}>
           Work Removal
+        </RequestSubLink>
+        <RequestSubLink href="/requests/deleted" active={active === "deleted"}>
+          Deleted
         </RequestSubLink>
       </div>
     </details>

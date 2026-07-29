@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createSupabaseDb } from "@/lib/supabase/db";
 import { AppSidebar } from "@/components/AppSidebar";
+import { ApprovalDecisionForm } from "@/components/ApprovalDecisionForm";
 import { RequestDeletePanel } from "@/components/RequestDeletePanel";
 import ProgressUpdater from "../../../components/ProgressUpdater";
 import ResourcePlannerEditor from "../../../components/ResourcePlannerEditor";
@@ -104,7 +105,7 @@ export default async function BreakInDetailPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ approvalError?: string; approvalSaved?: string; deleteError?: string; detailsError?: string; detailsUpdated?: string; emailWarning?: string; reopened?: string }>;
+  searchParams: Promise<{ approvalError?: string; approvalSaved?: string; deleteError?: string; detailsError?: string; detailsUpdated?: string; emailWarning?: string; reopened?: string; returnTo?: string }>;
 }) {
   const currentUser = await requireCurrentUser();
   const { id } = await params;
@@ -436,6 +437,7 @@ export default async function BreakInDetailPage({
               savePath={`/api/break-in/${id}/decision`}
               workgroup={request.workgroup}
               canAction={canApproveStage(currentUser, stage.stage)}
+              returnTo={sp.returnTo}
             />
           ))}
         </div>
@@ -600,6 +602,7 @@ function ApprovalBlock({
   savePath,
   workgroup,
   canAction,
+  returnTo,
 }: {
   title: string;
   stage: ApprovalStage;
@@ -614,6 +617,7 @@ function ApprovalBlock({
   savePath: string;
   workgroup: string | null;
   canAction: boolean;
+  returnTo?: string;
 }) {
   const isActive = activeStatuses.includes(currentStatus);
   const isDone = currentStatus === "REJECTED"
@@ -622,7 +626,6 @@ function ApprovalBlock({
   const label = notApplicable ? "N/A" : rejected ? "Rejected" : isActive ? "Awaiting review" : isDone ? "Completed" : "Waiting";
   const labelColor = rejected ? "#b91c1c" : isActive ? "#b45309" : isDone ? "#166534" : "#475569";
   const labelBg = rejected ? "#fee2e2" : isActive ? "#fef3c7" : isDone ? "#dcfce7" : "#e2e8f0";
-  const needsWorkgroup = stage === "COORD_REVIEW";
 
   return (
     <div
@@ -679,27 +682,7 @@ function ApprovalBlock({
         </div>
       </div>
       {isActive && canAction ? (
-        <form action={savePath} method="post" style={{ marginTop: 12, display: "grid", gap: 10 }}>
-          <input type="hidden" name="stage" value={stage} />
-          {needsWorkgroup ? (
-            <label>
-              <div style={{ fontSize: 12, color: "#111", fontWeight: 800, marginBottom: 6 }}>Workgroup</div>
-              <input name="workgroup" defaultValue={workgroup || ""} required style={approvalInputStyle} />
-            </label>
-          ) : null}
-          <label>
-            <div style={{ fontSize: 12, color: "#111", fontWeight: 800, marginBottom: 6 }}>Comment</div>
-            <textarea name="comment" rows={3} style={approvalTextareaStyle} />
-          </label>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <button type="submit" name="decision" value="APPROVE" style={approveButtonStyle}>
-              Approve
-            </button>
-            <button type="submit" name="decision" value="REJECT" style={rejectButtonStyle}>
-              Reject
-            </button>
-          </div>
-        </form>
+        <ApprovalDecisionForm stage={stage} savePath={savePath} workgroup={workgroup} fallbackHref="/break-in/list" returnTo={returnTo} />
       ) : isActive ? (
         <div style={restrictedApprovalStyle}>
           Awaiting {getApprovalStageRole(stage)} approval.
@@ -720,36 +703,11 @@ const restrictedApprovalStyle = {
   fontWeight: 800,
 } as const;
 
-const approvalInputStyle = {
-  width: "100%",
-  padding: "10px 12px",
-  border: "1px solid #d1d5db",
-  borderRadius: 8,
-  color: "#111",
-  fontWeight: 700,
-} as const;
-
-const approvalTextareaStyle = {
-  ...approvalInputStyle,
-  minHeight: 82,
-  resize: "vertical",
-} as const;
-
 const approveButtonStyle = {
   padding: "10px 14px",
   borderRadius: 8,
   border: "1px solid #15803d",
   background: "#16a34a",
-  color: "#fff",
-  fontWeight: 900,
-  cursor: "pointer",
-} as const;
-
-const rejectButtonStyle = {
-  padding: "10px 14px",
-  borderRadius: 8,
-  border: "1px solid #b91c1c",
-  background: "#dc2626",
   color: "#fff",
   fontWeight: 900,
   cursor: "pointer",
